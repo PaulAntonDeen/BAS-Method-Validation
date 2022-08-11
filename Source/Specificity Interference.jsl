@@ -1,0 +1,530 @@
+﻿Names Default To Here( 1 );
+If( !Namespace Exists( "MValidationSpecificity" ),
+	nsref = New Namespace(
+		"MValidationSpecificity"
+	)
+);
+ScriptVersion = "2022-06-30";
+Include( "ReportTools.jsl" );
+
+//Check for an active table, if not present open dialog.
+dt = If( N Rows() > 0,
+	dt = Current Data Table(),
+	dt = try(
+		Open(),
+		Print( "No data table opened" );
+		Stop();
+	)
+);
+dt << Clear Select;
+dt << Clear Column Selection;
+path = dt << get path;
+bs = Contains( path, "\", -1 );
+fs = Contains( path, "/", -1 );
+m = max(bs, fs);
+DirPath = substr(path, 1, m);
+FilePath = substr(path, m+1);
+try(dt << Delete Columns({"Accuracy/Bias","Studentized Residuals Relative Potency %"}));
+
+New Window( "Method Validation - Specificity Interference", 
+	Border Box( Left( 3 ), top( 2 ),
+		Panel Box( "",
+			V List Box(
+				H Center Box(
+					V List Box(
+						Baslogo,
+						Text Box(
+							"                                                                                (c) Bioassay sciences 2021 -" || char(year(Today())),
+							<<Set Font Size( 7 ),
+							<<Set wrap( 500 )
+						),
+					),
+				),
+				Text Box( "" ),
+				H list box(
+					pb = Panel Box( "Specificity Interference Study",
+						H list box(
+							Panel Box( "Select Columns",v list box(
+								colListDataSimple = Col list box( All, width( 253 ), grouped, nLines( 10 ) ),
+								Spacer box(size(1,2))
+								)	
+							),
+							Panel Box( "Cast Selected Columns into Roles",
+								Lineup Box( N Col( 2 ), Spacing( 3 ),
+									Button Box( "Theoretical Concentration/Dilution", ConcentrationBox << Append( colListDataSimple << GetSelected ) ),
+									ConcentrationBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 ) ),
+									Button Box( "Unspiked Response", UnSpikedBox << Append( colListDataSimple << GetSelected ) ),
+									UnSpikedBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 ) ),
+									Button Box( "Spiked Response", SpikedBox << Append( colListDataSimple << GetSelected ) ),
+									SpikedBox = Col List Box( width( 200 ), nLines( 6 ), numeric, MinItems( 1 ) ),
+								)
+							),
+							V list box(
+								Panel Box("Criteria",
+									Lineup Box( N Col( 2 ), Spacing( 3 ),
+										Text Box("Accuracy (%)"),
+										AccuracyBox = Number edit box(10),
+										SpecBox = Combo box({"Tolerance (USL-LSL)", "Margin", "Mean" }),
+										ValBox = Number edit box(60),
+									)
+								),
+								Panel Box("Externally Studentized Residual Outliers",
+									h list box(
+										OutlierBox = Combo box({"Do not check", "Detect only", "Check and Exclude"}),
+										OutlierBox << set(3),
+										text box("K sigma "),
+										ksigmabox = number edit box(3)
+									)
+								)
+							),
+						)					
+					),
+					Panel Box( "Action",
+						Lineup Box( N Col( 1 ),
+							Button Box( "OK",
+								Try(MValidationSpecificity:ConcentrationColName = ConcentrationColName = ConcentrationBox << Get Items);
+								Try(MValidationSpecificity:UnSpikedColName = UnSpikedColName = UnSpikedBox << Get Items);
+								Try(MValidationSpecificity:SpikedColNames = SpikedColNames = SpikedBox << Get Items);
+								Try(MValidationSpecificity:Accuracy = Accuracy = AccuracyBox << Get);
+								Try(MValidationSpecificity:SpecType = SpecBox << get);
+								Try(SpecType = SpecBox << get selected);
+								Try(MValidationSpecificity:Tolerance = Tolerance = ValBox << Get);
+								Try(MValidationSpecificity:AnalyticalMethod = AnalyticalMethod = AMBox << get text());
+								Try(MValidationSpecificity:Unit = Unit = UnitBox << get text());
+								Try(MValidationSpecificity:ksigma = ksigma = ksigmabox << get());
+								Try(MValidationSpecificity:OutlierDetection = OutlierDetection = OutlierBox << Get());
+								//Validate
+								If(
+									or(
+										n items(ConcentrationColName) < 1, 
+										n items(UnSpikedColName) < 1,
+										n items(SpikedColNames) < 1,
+										is empty(Accuracy),
+										is empty(Tolerance)
+									),
+									New window("Error", <<modal, Text box("You have a missing field!"))
+								,	
+									Current window() << close window();
+									MainBody;
+								);
+							),
+							Button Box( "Cancel",
+								Print( "User hit cancel" );
+								Current window() << close window();
+							),
+							Button Box("Recall",
+								Try(ConcentrationBox << Set Items(MValidationSpecificity:ConcentrationColName));
+								Try(SpikedBox << Set Items(MValidationSpecificity:SpikedColNames));
+								Try(UnSpikedBox << Set Items(MValidationSpecificity:UnSpikedColName));
+								Try(AccuracyBox << Set(MValidationSpecificity:Accuracy));
+								Try(ValBox << Set(MValidationSpecificity:Tolerance));
+								Try(AMBox << set text(MValidationSpecificity:AnalyticalMethod));
+								Try(UnitBox << set text(MValidationSpecificity:Unit));
+								Try(SpecBox << set(MValidationSpecificity:SpecType));
+								Try(OutlierBox << Set(MValidationSpecificity:OutlierDetection));
+								Try(ksigmabox << Set(MValidationSpecificity:ksigma));
+							),
+							Button Box("Help",
+								New window("Help", <<modal, v list box(
+									Text box("This table format is expected\!n"),
+									SpecificityHelp
+									)
+								)
+							),
+						)
+					),
+				),
+				Panel box("Study descriptives",
+					Lineup Box( N Col( 2 ),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
+						Text box("Unit"),
+						UnitBox = Text edit box("%RP", << set width(1000)),
+					),
+				)
+			)
+		)
+	)
+);
+
+ColonWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, parse(":" || Log Capture( Print( ColName[i] ) ) || "n"))
+		);
+		Return(ReturnList)
+	,
+		Return(parse(":" || Log Capture( Print( ColName ) ) || "n"))
+	);
+);
+
+FileNameFriendlyTimeFormat = Function({timestamp = today()},
+	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+);
+
+MainBody = expr(
+	StartWindows = n items(window());
+	//Create a blank journal
+	Temp window = New Window( dt << get name(), <<Journal);
+	jrn = Current Journal();
+	TimeOfReport = today();
+
+	//Ttitle page
+	jrn << append(Picture Box( BASLogo ));
+	VSpacer( 4 );
+	jrn<<Append(Text Box("Specificity Interference report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	VSpacer( 2 );
+	
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 2 );
+	jrn << append(
+		Table box(
+			String Col Box("Specification", {"Accuracy (%)", SpecType}),
+			NCB = Number Col Box("Value", {Accuracy, Tolerance})
+		)
+	);
+	VSpacer( 2 );
+	jrn << append(
+		Text box(
+			"Analytical Method: " || AnalyticalMethod
+		)
+	);
+	VSpacer( 6 );
+	If(Host Is( "Windows" ),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		)),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USER" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		))
+	);
+	VSpacer( 8 );
+	DashedLine;
+	jrn << append(Text Box( "Analyst Signature/Date" ));
+	VSpacer( 4 );
+	DashedLine;
+	jrn << append(Text Box( "Reviewer Signature/Date" ));
+	VSpacer( 1 );
+	jrn << append(Page Break Box());
+	
+	Header("Data table");
+	jrn << append((dt << New Data Box()) << Clone Box);
+
+	jrn << append(Page Break Box());
+	
+	dtS = dt << Stack(
+		invisible,
+		columns(
+			ColonWrapColumns(concat(UnSpikedColName, SpikedColNames))
+		),
+		Source Label Column( "Item" ),
+		Stacked Data Column( "RP" )
+	);
+	dtS << Select Where( Is Missing( :RP ) ) << Delete Rows;
+	Column(dts, ConcentrationColName[1]) << set name("Concentration");
+	
+	//Main loop
+	For(i=1, i<=n items(SpikedColNames), i++,
+		If(i>1, jrn << append(Page Break Box()));
+		dtS << Select all rows << hide and exclude(0);
+		dtS << Select where(!(:Item == UnspikedColName[1] | :Item == SpikedColNames[i])) << hide and exclude(1);
+		dtS << clear select;
+		dtS << Color or Mark by Column(:Item);
+		
+		fm = dtS << Fit Model(
+			Invisible,
+			Y( :RP ),
+			Effects( :Item, :Concentration, :Item * :Concentration ),
+			Personality( "Standard Least Squares" ),
+			Emphasis( "Effect Leverage" ),
+			Run(
+				Profiler(
+					1,
+					Confidence Intervals( 1 ),
+					Term Value(
+						Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
+						RP( 103.768, Lock( 0 ), Show( 1 ) )
+					)
+				),
+				:Concentration << {Summary of Fit( 1 ),
+				Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
+				Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
+				Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
+				Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+				Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
+				Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
+				{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
+				Least Squares Means Plot}}}
+			)
+		);
+		
+		//Outlier detection
+		If(OutlierDetection>1,
+			FM << Externally Studentized Residuals;
+			studres = column(dtS, n cols(dtS));
+			try( studres << Format( "Fixed Dec", 12, 3 ));
+			
+			out = eval(eval expr(dtS << New Column( "Outlier",
+				Character,
+				"Nominal",
+				Formula(
+					If( abs(expr(ColonWrapColumns(studres << get name))) > expr(ksigma),
+						"Outlier",
+						"Ok"
+					)
+				),
+				Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+				Color Cell by Value
+			)));
+			If(OutlierDetection>2,
+				//Exclude Outliers
+				eval(eval expr(dtS << Select Where(expr(ColonWrapColumns(out << get name)) == "Outlier") << Hide and Exclude(1) << Clear Select()));
+				eval(eval expr(dtS << New Column( "Include/Exclude",
+					Character,
+					"Nominal",
+					Formula( If( expr(ColonWrapColumns(out << get name)) == "Outlier", "Excluded", "Included" ) ),
+				)));
+				//refit
+				fm << close window();
+				fm = dtS << Fit Model(
+					Invisible,
+					Y( :RP ),
+					Effects( :Item, :Concentration, :Item * :Concentration ),
+					Personality( "Standard Least Squares" ),
+					Emphasis( "Effect Leverage" ),
+					Run(
+						Profiler(
+							1,
+							Confidence Intervals( 1 ),
+							Term Value(
+								Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
+								RP( 103.768, Lock( 0 ), Show( 1 ) )
+							)
+						),
+						:Concentration << {Summary of Fit( 1 ),
+						Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
+						Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
+						Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
+						Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+						Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
+						Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
+						{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
+						Least Squares Means Plot}}}
+					)
+				);
+			,
+				eval(eval expr(dtS << New Column( "Include/Exclude",
+					Character,
+					"Nominal",
+					Formula( If( expr(ColonWrapColumns(out << get name)) == "Outlier", "Included", "Included" ) ),
+				)));
+			)
+		);
+	
+		Header("Specificity " || SpikedColNames[i]);
+		Report(fm)["Effect Tests"] << setopen(1) << journal;
+		VSpacer(1);
+		If((Report(fm)[OutlineBox("Effect Tests")][1][NumberColbox("Prob > F")] << get)[3]>0.05,
+			//Interaction not significant, nominal mains only
+			jrn << append(Text box("Interaction not significant", <<set wrap( 2000 ), << Set Font Size( 14 )));
+			fm << close window();
+			fm = dtS << Fit Model(
+				invisible,
+				Y( :RP ),
+				Effects( :Item, :Concentration ),
+				Personality( "Standard Least Squares" ),
+				Emphasis( "Effect Leverage" ),
+				Run(
+					Profiler(
+						1,
+						Confidence Intervals( 1 ),
+						Term Value(
+							Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
+							Concentration( 100, Lock( 0 ), Show( 1 ) )
+						)
+					),
+					:RP << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
+					Parameter Estimates( 1 ), Scaled Estimates( 0 ),
+					Plot Actual by Predicted( 1 ), Plot Residual by Predicted( 1 ),
+					Plot Residual by Row( 0 ), Plot Studentized Residuals( 0 ),
+					Plot Effect Leverage( 1 ), Plot Residual by Normal Quantiles( 0 ),
+					Box Cox Y Transformation( 0 ), Show All Confidence Intervals( 0 ),
+					Show VIF( 0 ), {:Item << {LSMeans Student's t(
+						0.05,
+						Crosstab Report( 0 ),
+						Connecting Letters Report( 0 ),
+						Ordered Differences Report( 1 )
+					), Least Squares Means Plot}}}
+				),
+				SendToReport(
+					Dispatch(
+						{"Response RP", "Item", "Least Squares Means Plot"},
+						"Least Squares Means Plot",
+						FrameBox,
+						{DispatchSeg(
+							BarSeg( 1 ),
+							{Line Color( "Red" ), Line Width( 2 ), Error Bar Cap( "Small" )}
+						)}
+					)
+				)
+			);
+			//Write to report
+			VSpacer(1);
+			jrn << Append(Report(fm)["Regression Plot"][1]);
+			jrn << Append(Report(fm)["Item"]["Least Squares Means Plot"]);
+			jrn << Append(Report(fm)["Item"]["LSMeans Differences Student's t"]);
+			sumdt = Report(fm)["Item"]["LSMeans Differences Student's t"][table box(1)] << make into data table(invisible);
+		,
+			//Interaction significant
+			fm << close window();
+			wait(0.1);
+			Column(dtS, "Concentration") << set modeling type("Nominal");
+			wait(0.1);
+			fm = dtS << Fit Model(
+				Invisible,
+				Y( :RP ),
+				Effects( :Item, :Concentration, :Item * :Concentration ),
+				Personality( "Standard Least Squares" ),
+				Emphasis( "Effect Leverage" ),
+				Run(
+					Profiler(
+						1,
+						Confidence Intervals( 1 ),
+						Term Value(
+							Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
+							Concentration( 75, Lock( 0 ), Show( 1 ) )
+						)
+					),
+					:RP << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
+					Parameter Estimates( 1 ), Lack of Fit( 0 ), Scaled Estimates( 0 ),
+					Plot Actual by Predicted( 1 ), Plot Regression( 0 ),
+					Plot Residual by Predicted( 1 ), Plot Residual by Row( 0 ),
+					Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+					Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
+					Show All Confidence Intervals( 0 ), Show VIF( 0 ), {:Item <<
+					{LSMeans Student's t(
+						0.05,
+						Crosstab Report( 0 ),
+						Connecting Letters Report( 0 ),
+						Ordered Differences Report( 1 )
+					), Least Squares Means Plot}, :Item * :Concentration <<
+					{LSMeans Tukey HSD(
+						0.05,
+						Crosstab Report( 0 ),
+						Connecting Letters Report( 0 ),
+						Ordered Differences Report( 1 )
+					), Least Squares Means Plot( Overlay Term List( Item ) )}}}
+				),
+				SendToReport(
+					Dispatch(
+						{"Response RP", "Item", "Least Squares Means Plot"},
+						"Least Squares Means Plot",
+						FrameBox,
+						{DispatchSeg(
+							BarSeg( 1 ),
+							{Line Color( "Red" ), Line Width( 2 ), Error Bar Cap( "Small" )}
+						)}
+					)
+				)
+			);
+			jrn << append(Text box("Significant interaction", <<set wrap( 2000 ), << Set Font Size( 14 )));
+			//Write to report
+			VSpacer(1);
+			jrn << Append(Report(fm)["Actual by Predicted Plot"][1]);
+			jrn << Append(Report(fm)["Item"]["Least Squares Means Plot"]);
+			jrn << Append(Report(fm)["Item"]["LSMeans Differences Student's t"]);
+			jrn << Append(Report(fm)["Item*Concentration"]["Least Squares Means Plot"]);
+			// make sum table
+			sumdt = Report(fm)["Item*Concentration"]["LSMeans Differences Tukey HSD"][table box(1)] << make into data table(invisible);
+			Column(dtS, "Concentration") << set modeling type("Continuous");
+			sumdt << New Column( "Pairs",
+				Numeric,
+				"Continuous",
+				Format( "Best", 12 ),
+				Formula( Word( 2, :Level, "," ) == Word( 2, :"- Level"n, "," ) ),
+			);
+			sumdt << Select Where( :Pairs == 0 ) << Delete Rows;
+			sumdt << Delete Columns(:Pairs);
+			
+		);
+	
+		sumdt << Delete Columns( :Std Err Dif, :"p-Value"n );
+		Eval(
+			Eval Expr(
+				sumdt << New Column( "Specificity % of Tolerance",
+					Numeric,
+					"Continuous",
+					Format( "Fixed Dec", 12, 1 ),
+					Formula( (Abs( :"Difference"n ) / Expr( tolerance )) * 100 ),
+				)
+			)
+		);
+		Column(sumdt, "Difference") << set name("Difference (" || Unit || ")");
+		Eval(
+			Eval Expr(
+				sumdt << New Column( "Result",
+					Character,
+					"Nominal",
+					Formula( If( :Specificity % of Tolerance > Expr( accuracy ), "Fail", "Pass" ) ),
+					Set Property( "Value Colors", {"Pass" = 76, "Fail" = 67} ),
+					Color Cell by Value
+				)
+			)
+		);
+		Column(sumdt, "Specificity % of Tolerance") << set name("Specificity % of " || SpecType);
+		VSpacer(1);
+		jrn << append(Outline box("Result", (sumdt << New Data Box()) << Clone Box));
+		Close(sumdt, no save);
+		fm << close window(1);
+	);
+	If(OutlierDetection>1,
+		jrn << append(Page Break Box());
+		Header("Data table with outlier test result");
+		jrn << append((dtS << New Data Box()) << Clone Box);
+		If(OutlierDetection>1,
+			jrn << append(Text box("K Sigma: " || char(ksigma)))
+		);
+	);
+	Close(dtS, no save);
+	
+	//Close journal with date
+	VSpacer(10);
+	
+	jrn << append(Text Box(
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		<<set font size( 14 ),
+		<<font color( {0, 0, 0.5} ),
+		<<set wrap( 1300 )
+	));
+	
+	//Save journal
+	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
+	jrn << Set Window Title( FileName );
+	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+
+	//Define setup information to save in pdf
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Save PDF( DirPath || FileName || ".pdf" );
+	jrn << Save Journal( DirPath || FileName || ".jrn" );
+	//jrn << close window( 1 );
+	
+	While(n items(window())>StartWindows,
+		window()[n items(window())] << close window(1);
+	);
+	
+);

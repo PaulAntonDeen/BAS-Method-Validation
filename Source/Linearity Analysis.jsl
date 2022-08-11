@@ -1,0 +1,1554 @@
+﻿Names Default To Here( 1 );
+If( !Namespace Exists( "AMValidation" ),
+	nsref = New Namespace(
+		"AMValidation"
+	)
+);
+ScriptVersion = "2022-06-30";
+Include( "ReportTools.jsl" );
+
+//Check for an active table, if not present open dialog.
+dt = If( N Rows() > 0,
+	dt = Current Data Table(),
+	dt = try(
+		Open(),
+		Print( "No data table opened" );
+		Stop();
+	)
+);
+dt << Clear Select;
+dt << Clear Column Selection;
+path = dt << get path;
+bs = Contains( path, "\", -1 );
+fs = Contains( path, "/", -1 );
+m = max(bs, fs);
+DirPath = substr(path, 1, m);
+FilePath = substr(path, m+1);
+try(dt << Delete Columns({"Accuracy/Bias","Studentized Residuals Relative Potency %"}));
+
+New Window( "Analytical Method Validation", 
+	Border Box( Left( 3 ), top( 2 ),
+		Panel Box( "",
+			V List Box(
+				H Center Box(
+					V List Box(
+						Baslogo,
+						Text Box(
+							"                                                                                (c) Bioassay sciences 2021 -" || char(year(Today())),
+							<<Set Font Size( 7 ),
+							<<Set wrap( 500 )
+						),
+					),
+				),
+				Text Box( "" ),
+				H list box(
+					pb = Panel Box( "Linearity Study",
+						H list box(
+							Panel Box( "Select Columns",v list box(
+								colListDataSimple = Col list box( All, width( 253 ), grouped, nLines( 13 ) ),
+								Spacer box(size(1,2))
+								)	
+							),
+							Panel Box( "Cast Selected Columns into Roles",
+								Lineup Box( N Col( 2 ), Spacing( 3 ),
+									Button Box( "Response", ResponseBox << Append( colListDataSimple << GetSelected ) ),
+									ResponseBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 ) ),
+									Button Box( "Main Effects", MainEffectsBox << Append( colListDataSimple << GetSelected ) ),
+									MainEffectsBox = Col List Box( width( 200 ), nLines( 6 ), MinItems( 1 ) ),
+									Button Box( "Theoretical Concentration/Dilution", TheoreticalConcentrationBox << Append( colListDataSimple << GetSelected ) ),
+									TheoreticalConcentrationBox = Col List Box( width( 200 ), nLines( 1 ), MinItems( 1 ), MaxItems( 1 )),
+								)
+							)
+						)					
+					),
+					Lineup Box( N Col( 1 ),
+						Panel Box( "Product Specifications",
+							Lineup Box( N Col( 2 ),
+								Text box("USL"),
+								USLBox = Number Edit Box(130),
+								Text box("LSL"),
+								LSLBox = Number Edit Box(70),
+							)
+						),
+						Panel Box("Within Dose Group Outliers",
+							h list box(
+								OutlierBox = Combo box({"Do not check", "Detect only", "Check and Exclude"}),
+								OutlierBox << set(3),
+								text box("K sigma "),
+								ksigmabox = number edit box(3)
+							)
+						),
+						Panel Box( "Acceptance Criteria",
+							Lineup Box( N Col( 1 ),
+								Table box(
+									String Col Box("Method Attribute", {"Accuracy", "Repeatability", "Intermediate Precision", "Upper Linearity Limit", "Lower Linearity Limit"}),
+									NCB = Number Col Edit Box("Criteria (% of tolerance)", {10, 25, 30, 120, 80})
+								),
+								Button Box("Analytical method", NCB << Set({10, 25, 30, 120, 80})),
+								Button Box("Bioassay", NCB << Set({20, 60, 70, 120, 80})),
+							),
+						),
+
+					),
+					Panel Box( "Action",
+						Lineup Box( N Col( 1 ),
+							Button Box( "OK",
+								Try(AMValidation:ResponseNames = ResponseNames = ResponseBox << Get Items);
+								Try(AMValidation:MainEffectsNames = MainEffectsNames = MainEffectsBox << Get Items);
+								Try(AMValidation:TheoreticalConcentrationNames = TheoreticalConcentrationNames = TheoreticalConcentrationBox << Get Items);
+								AMValidation:USL = USL = USLBox << get();
+								AMValidation:LSL = LSL = LSLBox << get();
+								Tolerance = USL - LSL;
+								AMValidation:ksigma = ksigma = ksigmabox << get();
+								Descriptives = Associative Array();
+								Try(Descriptives << insert("Analytical method", AMBox << get text()));
+								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+								AMValidation:Descriptives = Descriptives;
+								Try(AMValidation:Criterion = NCB << get);
+								Try(Criterion = Associative Array({"Accuracy", "Repeatability", "IP", "Upper Linearity Limit", "Lower Linearity Limit"}, NCB << get));
+								AMValidation:OutlierDetection = OutlierDetection = OutlierBox << Get();
+								AMValidation:doLODQ = doLODQ = dolodloqcb << get();
+								//Validate
+								If(or(
+									is missing(USL),
+									is missing(LSL), 
+									n items(ResponseNames) < 1, 
+									n items(MainEffectsNames) < 2, 
+									n items(TheoreticalConcentrationNames) < 1, 
+									is missing(Criterion["Accuracy"]), 
+									is missing(Criterion["Repeatability"]), 
+									is missing(Criterion["IP"]), 
+									is missing(Criterion["Upper Linearity Limit"]), 
+									is missing(Criterion["Lower Linearity Limit"]), 
+									),
+									New window("Error", <<modal, Text box("You have a missing column, specification, criterion or limit!"))
+								,	
+									Current window() << close window();
+									MainBody;
+								);
+							),
+							Button Box( "Cancel",
+								Print( "User hit cancel" );
+								Current window() << close window();
+							),
+							Button Box("Recall",
+								Try(ResponseBox << Set Items(AMValidation:ResponseNames));
+								Try(MainEffectsBox << Set Items(AMValidation:MainEffectsNames));
+								Try(TheoreticalConcentrationBox << Set Items(AMValidation:TheoreticalConcentrationNames));
+								try(USLBox << set(AMValidation:USL));
+								try(LSLBox << set(AMValidation:LSL));
+								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+								Try(AnalystBox << set text(AMValidation:Descriptives["Analyist"]));
+								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+								Try(NCB << set(AMValidation:Criterion));
+								Try(OutlierBox << Set(AMValidation:OutlierDetection));
+								Try(ksigmabox << Set(AMValidation:ksigma));
+								Try(dolodloqcb << Set(AMValidation:doLODQ));
+								If(dolodloqcb << get, lodloqif << set(1), lodloqif << set(0));
+							),
+						)
+					),
+				),
+				Panel box("Study descriptives",
+					Lineup Box( N Col( 2 ),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
+						Text box("Analyst"),
+						AnalystBox = Text edit box(""),
+						Text box("Instrument"),
+						InstrumentBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Standard Expiry"),
+						StandardExpiryBox = Text edit box(""),
+					),
+				),
+				H Center Box(
+					v list box(
+						dolodloqcb = Check box("Calculate Limit of Detection (LOD) and Limit of Quantitation (LOQ)", If(dolodloqcb << get, lodloqif << set(1), lodloqif << set(0))),
+						lodloqif = if box(0,
+							Panel Box("LOD and LOQ",
+								v list box(
+									Text box("Select data table with LOD and LOQ characterization doses"),
+									lb = list box(Get Data Table List()),
+									Button box("Specify columns",
+										dtlodloq = data table((lb << Get Selected)[1]);
+										Current Data Table(dtlodloq);
+										nw2 = new window("LODLOQ", <<modal,
+											H list box(
+												Panel Box( "Select Columns",v list box(
+													clb = Col list box( All, width( 253 ), grouped, nLines( 4 ) ),
+													Spacer box(size(1,2))
+													)	
+												),
+												Panel Box( "Cast Selected Columns into Roles",
+													Lineup Box( N Col( 2 ), Spacing( 3 ),
+														Button Box( "Response", LODLOQResponseBox << Append( clb << GetSelected ) ),
+														LODLOQResponseBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 )),
+														Button Box( "Theoretical Concentration/Dilution", LODLOQTheoreticalConcentrationBox << Append( clb << GetSelected ) ),
+														LODLOQTheoreticalConcentrationBox = Col List Box( width( 200 ), nLines( 1 ), MinItems( 1 ), MaxItems( 1 )),
+													)
+												),
+												Panel Box( "Sample Specifications",
+													h list box(
+														Text box("Number of independent runs"),
+														NrOfRunsBox = Number Edit Box(1),
+													)
+												),
+												Button Box( "OK",
+													Try(AMValidation:LODLOQResponseNames = LODLOQResponseNames = LODLOQResponseBox << Get Items);
+													Try(AMValidation:LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationBox << Get Items);
+													Try(AMValidation:NrOfRuns = NrOfRuns = NrOfRunsBox << Get);
+													Current Data Table(dt);
+												)
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				)
+			)
+		)
+	)
+);
+
+ColumnWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, column(ColName[i]))
+		);
+		Return(ReturnList);
+	,
+		Return(column(ColName))
+	);
+);
+
+ColonWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, parse(":" || Log Capture( Print( ColName[i] ) ) || "n"))
+		);
+		Return(ReturnList)
+	,
+		Return(parse(":" || Log Capture( Print( ColName ) ) || "n"))
+	);
+);
+
+ColumnExists = Function({dt,colName},{Default Local},
+    Try(
+        lstNames = dt << Get Column Names(string);
+            pos = Loc(lstNames,colName);
+            If (NRows(pos)==0,
+                retVal = 0
+            ,
+                retVal = 1
+            )
+        ,
+            retVal = 0
+    );
+    Return(retVal)
+);
+
+FileNameFriendlyTimeFormat = Function({timestamp = today()},
+	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+);
+
+ReturnCrossingsQuadratic = Function({Formule}, {default local},
+	C1 = arg(Formule, 1)+1.96; //equals -1.96
+	B = arg(arg(Formule, 2),1);
+	A = arg(arg(Formule, 3),1);
+	C2 = arg(Formule, 1)-1.96; //equals 1.96
+
+return(sort list(eval list({
+	(-B+sqrt(B^2-4*A*C1))/(2*A),
+	(-B-sqrt(B^2-4*A*C1))/(2*A),
+	(-B+sqrt(B^2-4*A*C2))/(2*A),
+	(-B-sqrt(B^2-4*A*C2))/(2*A)
+}))[3::4]);
+);
+
+CICrossingFinder = Function({Form, CrossList, Theo},{default local},
+	AnkerRange = max(CrossList)-min(CrossList);
+	Stepsize = AnkerRange/10000;
+	MidAnker = Sum(CrossList)/2;
+	UpperCICross = LowerCICross = .;
+	for(i=1, i<=1e4, i++,
+		ThisStep = MidAnker - StepSize*i;
+		PredVal = eval(substitute(name expr(Form), name expr(Theo), ThisStep))[1];
+		If(or(PredVal>1.96, PredVal<-1.96),
+			LowerCICross = ThisStep;
+			break();
+		);
+	);
+	for(i=1, i<=1e4, i++,
+		ThisStep = MidAnker + StepSize*i;
+		PredVal = eval(substitute(name expr(Form), name expr(Theo), ThisStep))[1];
+		If(or(PredVal>1.96, PredVal<-1.96),
+			UpperCICross = ThisStep;
+			break();
+		);
+	);
+	Return(LowerCICross, UpperCICross);
+);
+
+HideColumns = Function({dt, collist},{default local},
+	For(i=1, i<=n items(collist), i++,
+		Column(dt, collist[i]) << hide(1);
+	)
+);
+
+UnHideColumns = Function({dt, collist},{default local},
+	For(i=1, i<=n items(collist), i++,
+		Column(dt, collist[i]) << hide(0);
+	)
+);
+
+FindBiggestRange = Function({Concentrations, pf},{default local},
+	MaxLength = atI = 0;
+	For(i=1, i<= n items(pf), i++,
+		If(pf[i] == "Fail",
+			continue() //Next i
+		,
+			For(k=1, k<=n items(pf)-i, k++,
+				If(pf[i+k] == "Fail",
+					//Range ends in Fail
+					If(k-1 > MaxLength, //Is it the longest so far?
+						MaxLength = k;
+						atI = i;
+					);
+					break(); //Next i
+				);
+			);
+			If(k > MaxLength, //Is it the longest so far?
+				MaxLength = k;
+				atI = i;
+			);
+		);
+	);
+	If(atI==0,
+		Return({., .});
+	,
+		Return(Concentrations[atI], Concentrations[atI-1+MaxLength]);
+	);	
+);
+
+MainBody = expr(
+	StartWindows = n items(window());
+	//Create a blank journal
+	Temp window = New Window( dt << get name(), <<Journal);
+	jrn = Current Journal();
+	TimeOfReport = today();
+	Current Data Table(dt);
+	eval(eval expr(Summarize(
+		TruthMin = Min( expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
+		ResponseMin = Min( expr(ColonWrapColumns(ResponseNames[1])) ),
+		TruthMax = Max( expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
+		ResponseMax = Max( expr(ColonWrapColumns(ResponseNames[1])) ),
+	)));
+	AxisRange = max(TruthMax, ResponseMax) - min(TruthMin, ResponseMin);
+	AxisMin = min(TruthMin, ResponseMin) - 0.1*AxisRange;
+	AxisMax = max(TruthMax, ResponseMax) + 0.1*AxisRange;
+	AxisDecimals = round(log(1000/AxisRange),0);
+		
+	//Titlepage
+	//ReportFonts;
+	jrn << append(Picture Box( BASLogo ));
+	VSpacer( 4 );
+	jrn<<Append(Text Box("Linearity report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	VSpacer( 1 );
+	jrn<<Append(Text Box(Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Black" ), << Set Font Size( 20 ), << set Font Style( "Bold" )));
+	VSpacer( 1 );
+	Header("Data Integrity");
+	jrn << append(
+		Table box(
+			String Col Box("Study descriptives", Descriptives << get keys()),
+			String Col Box("Note", Descriptives << get values())
+		)
+	);
+	VSpacer( 2 );
+	jrn << append(
+		Table box(
+			String Col Box("Limit", {"USL", "LSL"}),
+			NCB = Number Col Box("Specification", {USL, LSL})
+		)
+	);
+	VSpacer( 2 );
+	jrn << append(
+		Table box(
+			String Col Box("Method Attribute", {"Accuracy", "Repeatability", "IP", "Upper Linearity Limit", "Lower Linearity Limit"}),
+			NCB = Number Col Box("Criteria (% of tolerance)", {Criterion["Accuracy"], Criterion["Repeatability"], Criterion["IP"], Criterion["Upper Linearity Limit"], Criterion["Lower Linearity Limit"]})
+		)
+	);
+	VSpacer( 2 );
+	
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 6 );
+	If(Host Is( "Windows" ),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		)),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USER" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		))
+	);
+	VSpacer( 8 );
+	DashedLine;
+	jrn << append(Text Box( "Analyst Signature/Date" ));
+	VSpacer( 4 );
+	DashedLine;
+	jrn << append(Text Box( "Reviewer Signature/Date" ));
+	VSpacer( 1 );
+	jrn << append(Page Break Box());
+	
+	//Outlier detection
+	If(OutlierDetection>1,
+		//Do multivariate by dose
+		MV = (dt << Multivariate(
+			Y( ColonWrapColumns(ResponseNames[1]) ),
+			Estimation Method( "Row-wise" ),
+			Scatterplot Matrix( 1 ),
+			Pairwise Correlations( 1 ),
+			Mahalanobis Distances( 1 ),
+			Jackknife Distances( 1, <<Save Jackknife Distances ),
+			By(ColonWrapColumns(TheoreticalConcentrationNames[1]))
+		)) << close window(1);
+		try(column(dt, n cols(dt)) << Format( "Fixed Dec", 12, AxisDecimals ));
+		
+		eval(eval expr(dt << New Column( "Outlier",
+			Character,
+			"Nominal",
+			Formula(
+				If( abs(expr(ColonWrapColumns(column(dt, n cols(dt))<<get name))) > expr(ksigma),
+					"Outlier",
+					"Ok"
+				)
+			),
+			Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+			Color Cell by Value
+		)));
+		If(OutlierDetection>2,
+			//Exclude Outliers
+			dt << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
+			)
+		,
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
+			);
+		)
+	);
+
+	Header("Data table");
+	//Add bias column and journal table	
+	eval(eval expr(dt << New Column( "Accuracy/Bias",
+		Numeric,
+		"Continuous",
+		Format( "Fixed Dec", 12, AxisDecimals ),
+ 		Formula( expr(ColonWrapColumns(ResponseNames[1])) - expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
+		Set Display Width( 78 )
+	)));
+	jrn << append((dt << New Data Box()) << Clone Box);
+	If(OutlierDetection>1,
+		jrn << append(Text box("K Sigma: " || char(ksigma)))
+	);
+	
+
+	jrn << append(Page Break Box());
+	
+	//Linearity rotation
+	Header("Linearity");
+	biv = dt << Bivariate(
+		Y( ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
+		X(  ColumnWrapColumns(ResponseNames[1]) ),
+		Fit Line( {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
+		Fit Special( Intercept( 0 ), Slope( 1 ), {Line Color( {61, 174, 70} )} ),
+		invisible,
+		SendToReport(
+			Dispatch(
+				{},
+				ResponseNames[1],
+				ScaleBox,
+				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
+			),
+			Dispatch(
+				{},
+				TheoreticalConcentrationNames[1],
+				ScaleBox,
+				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
+			),
+			Dispatch( {}, "Bivar Plot", FrameBox, {Frame Size( 300, 300 )} ),
+			Dispatch(
+				{"Linear Fit", "Parameter Estimates"},
+				"Lower 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			),
+			Dispatch(
+				{"Linear Fit", "Parameter Estimates"},
+				"Upper 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			),
+			Dispatch( {}, "Linear Fit", Outline Box( 2 ), {Close( 1 )} )
+		)
+	);
+	Report(biv)[OutlineBox(1)] << Set Title( "Linearity Evaluation" );
+	jrn << append(Report(biv));
+	biv << close window(1);
+	
+	biv = dt << Bivariate(
+		Y( ColumnWrapColumns(ResponseNames[1]) ),
+		X(  ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
+		Fit Line( {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
+		Fit Special( Intercept( 0 ), Slope( 1 ), {Line Color( {61, 174, 70} )} ),
+		invisible,
+		SendToReport(
+			Dispatch(
+				{},
+				ResponseNames[1],
+				ScaleBox,
+				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
+			),
+			Dispatch(
+				{},
+				TheoreticalConcentrationNames[1],
+				ScaleBox,
+				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
+			),
+			Dispatch( {}, "Bivar Plot", FrameBox, {Frame Size( 300, 300 )} ),
+			Dispatch(
+				{"Linear Fit", "Parameter Estimates"},
+				"Lower 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			),
+			Dispatch(
+				{"Linear Fit", "Parameter Estimates"},
+				"Upper 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			),
+			Dispatch( {}, "Linear Fit", Outline Box( 2 ), {Close( 1 )} )
+		)
+	);
+	biv << (Curve[1] << save studentized Residuals());
+	column(dt, n cols(dt)) << Set Format( "Fixed Dec", 12, 3 );
+	
+	biv << close window(1);
+	jrn << append(Page Break Box());
+	
+	//Range of linearity
+	Header("Range of Linearity");
+	biv = dt << Bivariate(
+		Y( column(dt, n cols(dt)) ),
+		X( ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
+		Fit Polynomial( 2, {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
+		Fit Special(
+			Degree( 2 ),
+			Centered Polynomial( 0 ),
+			{Line Color( {212, 73, 88} )}
+		),
+		invisible,
+		SendToReport(
+			Dispatch(
+				{},
+				column(dt, n cols(dt)) << get name,
+				ScaleBox,
+				{Add Ref Line( 1.96, "Solid", "Red", "UL 1.96", 1 ),
+				Add Ref Line( -1.96, "Solid", "Red", "LL -1.96", 1 )}
+			),
+			Dispatch(
+				{},
+				"Bivar Plot",
+				FrameBox,
+				{Frame Size( 800, 240 )}
+			),
+			Dispatch(
+				{"Polynomial Fit Degree=2"},
+				"Analysis of Variance",
+				OutlineBox,
+				{Close( 1 )}
+			),
+			Dispatch(
+				{"Polynomial Fit Degree=2", "Parameter Estimates"},
+				"Lower 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			),
+			Dispatch(
+				{"Polynomial Fit Degree=2", "Parameter Estimates"},
+				"Upper 95%",
+				NumberColBox,
+				{Visibility( "Visible" )}
+			)
+		)
+	);
+	
+	Report(biv)[OutlineBox(1)] << Set Title( "Linear Response Limits" );
+	biv << (Curve[2] << save predicteds());
+	Quad = column(dt, ncols(dt)) << Get Formula;
+	biv << (Curve[1] << Mean Confidence Limit Formula());
+	LowerCI = column(dt, ncols(dt)-1) << Get Formula;
+	UpperCI = column(dt, ncols(dt)) << Get Formula;
+	biv << (Curve[2] << remove fit());
+	for(i=1, i<=3, i++,
+		dt << Delete Columns(column(dt, ncols(dt)))
+	);
+	
+	QuadCross = ReturnCrossingsQuadratic(name expr(Quad));
+	LowerCICross = CICrossingFinder(name expr(LowerCI), QuadCross, ColonWrapColumns(TheoreticalConcentrationNames[1]));
+	UpperCICross = CICrossingFinder(name expr(UpperCI), QuadCross, ColonWrapColumns(TheoreticalConcentrationNames[1]));
+	ActuallLowerCICross = max(LowerCICross[1],UpperCICross[1]);
+	ActuallUpperCICross = min(LowerCICross[2],UpperCICross[2]);
+	Crossings = concat(QuadCross, eval list({ActuallLowerCICross, ActuallUpperCICross}));
+	
+	for(i=1, i<=n items(Crossings), i++,
+		Report(biv)[ScaleBox(1)] << Add Ref Line( Crossings[i], "Solid", black, char(round(Crossings[i],1)), 1 )
+	);
+	LLinearityLim = LSL * Criterion["Lower Linearity Limit"]/100;
+	ULinearityLim = USL * Criterion["Upper Linearity Limit"]/100;
+	//Report(biv)[ScaleBox(1)] << Add Ref Line( LLinearityLim, "Solid", red, "LLL" || char(round(LLinearityLim,1)), 1 );
+	//Report(biv)[ScaleBox(1)] << Add Ref Line( ULinearityLim, "Solid", red, "ULL" || char(round(ULinearityLim,1)), 1 );
+	
+	ScaleInf = (Max(Crossings) - Min(Crossings))/30;
+	Report(biv)[ScaleBox(1)] << Min( min(Crossings)-ScaleInf) << max(max(Crossings)+ScaleInf) << Label Row( Label Orientation( "Vertical" ) );
+	Report(biv)[ScaleBox(2)] << Min( -2.2) << max(2.2);
+	jrn << append(Report(biv));
+	VSpacer(1);
+	dtlin = (Table Box(
+		String Col Box( "Curve and 95% CI Limits", {"Lower Curve", "Upper Curve", "Lower 95% CL", "Upper 95% CL"} ),
+		tb = Number Col Box( "Limit", Crossings, << Set Format( "Fixed Dec", 12, AxisDecimals ) )
+	) << make into data table());
+	eval(eval expr(dtlin << New Column( "Pass/Fail Linearity",
+		Character,
+		"Nominal",
+		Formula(
+			Match( :"Curve and 95% CI Limits"n,
+				"Lower 95% CL",
+					If( :Limit < expr(LLinearityLim),
+						"Pass Linearity Criterion",
+						"Fails Linearity Criterion"
+					),
+				"Lower Curve",
+					If( :Limit < expr(LLinearityLim),
+						"Pass Linearity Criterion",
+						"Fails Linearity Criterion"
+					),
+				"Upper 95% CL",
+					If( :Limit > expr(ULinearityLim),
+						"Pass Linearity Criterion",
+						"Fails Linearity Criterion"
+					),
+				"Upper Curve",
+					If( :Limit > expr(ULinearityLim),
+						"Pass Linearity Criterion",
+						"Fails Linearity Criterion"
+					),
+				Empty(),
+			)
+		),
+		Set Property(
+			"Value Colors",
+			{"Pass Linearity Criterion" = 76, "Fails Linearity Criterion" = 67}
+		),
+		Color Cell by Value
+	)));	
+	jrn << Append(Outline Box("Linearity Limits", (dtlin << New Data Box()) << Clone Box));
+	biv << close window(1);
+	jrn << append(Page Break Box());
+	
+	current data table(dt);
+	//Bias by concentration
+	Header("Bias/Accuracy");
+	eval(eval expr(GB = dt << Graph Builder(
+		Size( 800, 450 ),
+		Show Control Panel( 0 ),
+		Fit to Window( "Off" ),
+		invisible,
+		Variables(
+			X( expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
+			Y( :"Accuracy/Bias"n ),
+			Overlay( expr(ColumnWrapColumns(TheoreticalConcentrationNames[1])) )
+		),
+		Elements(
+			Points( X, Y, Legend( 3 ) ),
+			Points(
+				X,
+				Y,
+				Legend( 4 ),
+				Summary Statistic( "Mean" ),
+				Error Interval( "Confidence Interval" )
+			)
+		),
+		SendToReport(
+			Dispatch(
+				{},
+				"Accuracy/Bias",
+				ScaleBox,
+				{Add Ref Line( 0, "Solid", "Black", "", 1 ),
+				Add Ref Line( (USL-LSL)*Criterion["Accuracy"]/100, "Solid", "Red", "Accuracy upper limit", 1 ),
+				Add Ref Line( -(USL-LSL)*Criterion["Accuracy"]/100, "Solid", "Red", "Accuracy lower limit", 1 )}
+			),
+			Dispatch(
+				{},
+				"graph title",
+				TextEditBox,
+				{Set Text( "                      Accuracy/Bias" )}
+			)
+		)
+	)));
+	summarize(dt,
+		minBias = Min(:"Accuracy/Bias"n),
+		maxBias = Max(:"Accuracy/Bias"n)
+	);
+	BiasRangeStep = (maxBias - minBias)/50;
+	BiasLimitStep = ((USL-LSL)*Criterion["Accuracy"]/100)/25;
+	Report(GB)[AxisBox(2)] << min(min(minBias,-(USL-LSL)*Criterion["Accuracy"]/100)-5*max(BiasRangeStep, BiasLimitStep)) << max(max(maxBias, (USL-LSL)*Criterion["Accuracy"]/100)+5*max(BiasRangeStep, BiasLimitStep));
+	jrn << Append(Report(GB)[GraphBuilderBox(1)]);
+	GB << close window(1);
+	
+	eval(eval expr(OW = dt << Oneway(
+		Y( :"Accuracy/Bias"n ),
+		X( expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
+		invisible
+		All Graphs( 0 ),
+		Means and Std Dev( 1 ),
+		invisible,
+		SendToReport(
+			Dispatch(
+				{"Means and Std Deviations"},
+				"Mean",
+				NumberColBox,
+				{Set Format( "Fixed Dec", 9, 2 )}
+			),
+			Dispatch(
+				{"Means and Std Deviations"},
+				"Std Dev",
+				NumberColBox,
+				{Visibility( "Collapse" )}
+			),
+			Dispatch(
+				{"Means and Std Deviations"},
+				"Std Err Mean",
+				NumberColBox,
+				{Visibility( "Collapse" )}
+			),
+			Dispatch(
+				{"Means and Std Deviations"},
+				"Lower 95%",
+				NumberColBox,
+				{Set Format( "Fixed Dec", 9, 2 )}
+			),
+			Dispatch(
+				{"Means and Std Deviations"},
+				"Upper 95%",
+				NumberColBox,
+				{Set Format( "Fixed Dec", 9, 2 )}
+			)
+		)
+	)));
+	dtMSD = (Report(OW)[TableBox(1)] << Make into Data Table(invisible));
+	OW << Close window(1);
+	column(dtMSD, 1) << set name(TheoreticalConcentrationNames[1]) << Set Modeling Type("Continuous") << Set Data Type("Numeric");
+	column(dtMSD, 3) << set name("Accuracy/Bias");
+	column(dtMSD, 4) << set name("Bias Lower 95%");
+	column(dtMSD, 5) << set name("Bias Upper 95%");
+	eval(eval expr(dtMSD << New Column( "Bias % of Tolerance",
+		Numeric,
+		"Continuous",
+		Format( "Fixed Dec", 12, 2 ),
+		Formula( (Abs( :"Accuracy/Bias"n ) / expr(Tolerance)) * 100 )
+	)));
+	eval(eval expr(New Column( "Accuracy Evaluation",
+		Character,
+		"Nominal",
+		Formula( If( :Bias % of Tolerance > expr(Criterion["Accuracy"]), "Fail", "Pass" ) ),
+		Set Property( "Value Colors", {"Fail" = 67, "Pass" = 76} ),
+		Color Cell by Value
+	)));
+	jrn << append((dtMSD << New Data Box()) << Clone Box);
+	jrn << append(Page Break Box());
+	
+	Header("Partition of Variation, Intermediate Precision");
+	dtBy = dt << Subset( invisible, By( ColonWrapColumns(TheoreticalConcentrationNames[1]) ), All rows, Selected columns only( 0 ), );
+	//Create an output table
+	dtOutput = dt << Summary(
+		Group( ColonWrapColumns(TheoreticalConcentrationNames[1]) ),
+		Freq( "None" ),
+		Weight( "None" )
+	);
+	Column(dtOutput, 1) << Set Modeling Type("Continuous") << Set Data Type("Numeric");
+	Column(dtOutput, 2) << set name("Number");
+	dtOutput << Set Table Variable("USL", USL);
+	dtOutput << Set Table Variable("LSL", LSL);
+	EffectsExpr = expr(Effects());
+	For(i=1, i<= n items(MainEffectsNames), i++,
+		insert into(EffectsExpr, ColonWrapColumns(MainEffectsNames)[i])
+	);
+	
+	For( ByInt = 1, ByInt <= N Items( dtBy ), ByInt++,
+		current data table(dtBy[ByInt]);
+		If(n rows(dtBy[ByInt]) - n items(dtBy[ByInt] << Get Hidden Rows) < 1, continue());
+		VB = v list box();
+		POVResults = POVFun(
+			dtBy[ByInt],
+			ColumnWrapColumns(ResponseNames[1]),
+			ColumnWrapColumns(MainEffectsNames),
+			name expr(EffectsExpr),
+			VB
+		);
+		//Between variance components to table
+		for(i=1, i<=n items(POVResults[2]), i++,
+			if(!ColumnExists(dtOutput, trim(POVResults[2][i])),
+				dtOutput << new column(trim(POVResults[2][i]),
+				Numeric,
+				"Continuous",
+				Format( "Fixed Dec", 12, 3 ));
+			);
+		);
+		if(!ColumnExists(dtOutput, "Repeatability (%)"),
+			dtOutput << New Column( "Repeatability (%)",
+				Numeric,
+				"Continuous",
+				Format( "Fixed Dec", 12, 3 ),
+				Set Property( "Notes", "Within total Intra assay error" ),
+				Set Display Width( 105 )
+			);
+		);
+		if(!ColumnExists(dtOutput, "Intermediate Precision (%)"),
+			dtOutput << New Column( "Intermediate Precision (%)",
+				Numeric,
+				"Continuous",
+				Format( "Fixed Dec", 12, 3 ),
+				Set Property( "Notes", "Grand total" ),
+				Set Display Width( 105 )
+			)
+		);
+		
+		Concentration = parse(word(-1, dtBy[ByInt] << get name,"="));
+		
+		RowNr = loc(column(dtOutput,1) << get values, Concentration)[1];
+		for(i=1, i<=n items(POVResults[2]), i++,
+			Column(dtOutput, trim(POVResults[2][i]))[RowNr] = sqrt(POVResults[4][i]);
+		);
+		Column(dtOutput, "Repeatability (%)")[RowNr] = sqrt(POVResults[5][2]);
+		Column(dtOutput, "Intermediate Precision (%)")[RowNr] = sqrt(sum(POVResults[5]));
+		jrn << Append(Outline Box(dtBy[ByInt] << get name,VB));
+		jrn << append(Page Break Box());
+	);
+	//Close all dtBy's
+	While(n items(dtBy)>0,
+		Close(dtBy[1], no save);
+		Remove from(dtBy, 1);
+	);
+	
+	dtOutput << Paste Columns(
+		{New Column( "Repeatability Upper 95% CL",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 3 ),
+			Formula(
+				:"Repeatability (%)"n  * Root(
+					(:Number - 1) / ChiSquare Quantile( 0.05 / 2, :Number - 1 )
+				)
+			),
+			Set Display Width( 93 )
+		),New Column( "Repeatability Lower 95% CL",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 3 ),
+			Formula(
+				:"Repeatability (%)"n * Root(
+					(:Number - 1) / ChiSquare Quantile( 1 - 0.05 / 2, :Number - 1 )
+				)
+			),
+			Set Display Width( 91 )
+		),New Column( "IP Upper 95% CL",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 3 ),
+			Formula(
+				:"Intermediate Precision (%)"n  * Root(
+					(:Number - 1) / ChiSquare Quantile( 0.05 / 2, :Number - 1 )
+				)
+			),
+			Set Display Width( 79 )
+		),New Column( "IP Lower 95% CL",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 3 ),
+			Formula(
+				:"Intermediate Precision (%)"n  * Root(
+					(:Number - 1) / ChiSquare Quantile( 1 - 0.05 / 2, :Number - 1 )
+				)
+			),
+			Set Display Width( 77 )
+		),New Column( "Repeatability % of Tolerance (n=1)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula( Round( (((:"Repeatability (%)"n/Sqrt(1)) * 5.15) / (USL - LSL)) * 100, 1 ) ),
+			Set Display Width( 82 )
+		),New Column( "IP % of Tolerance (n=1)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula(
+				Round( (((:"Intermediate Precision (%)"n/Sqrt(1))  * 5.15) / (USL - LSL)) * 100, 1 )
+			),
+			Set Display Width( 69 )
+		),
+		New Column( "Repeatability % of Tolerance (n=3)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula( Round( (((:"Repeatability (%)"n/Sqrt(3)) * 5.15) / (USL - LSL)) * 100, 1 ) ),
+			Set Display Width( 82 )
+		),New Column( "IP % of Tolerance (n=3)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula(
+				Round( (((:"Intermediate Precision (%)"n/Sqrt(3))  * 5.15) / (USL - LSL)) * 100, 1 )
+			),
+			Set Display Width( 69 )
+		),New Column( "Repeatability Pass/Fail (n=1)",
+			Character,
+			"Nominal",
+			Formula( If( :"Repeatability % of Tolerance (n=1)"n < Criterion["Repeatability"], "Pass", "Fail" ) ),
+			Set Property( "Value Colors", {"Pass" = 76, "Fail" = 67} ),
+			Color Cell by Value
+		), New Column( "Repeatability Pass/Fail (n=3)",
+			Character,
+			"Nominal",
+			Set Property( "Value Colors", {"Pass" = 76, "Fail" = 67} ),
+			Formula( If( :"Repeatability % of Tolerance (n=3)"n < Criterion["Repeatability"], "Pass", "Fail" ) ),
+			Color Cell by Value
+		), New Column( "Intermediate Precision Pass/Fail (n=1)",
+			Character,
+			"Nominal",
+			Set Property( "Value Colors", {"Pass" = 76, "Fail" = 67} ),
+			Formula( If( :"IP % of Tolerance (n=1)"n < Criterion["IP"], "Pass", "Fail" ) ),
+			Color Cell by Value,
+		), New Column( "Intermediate Precision Pass/Fail (n=3)",
+			Character,
+			"Nominal",
+			Set Property( "Value Colors", {"Pass" = 76, "Fail" = 67} ),
+			Formula( If( :"IP % of Tolerance (n=3)"n < Criterion["IP"], "Pass", "Fail" ) ),
+			Color Cell by Value
+		)}
+	);
+
+	//Table to journal
+	dtOutput << delete rows(dtOutput << Get excluded Rows);
+	Header("Repeatability and Intermediate Precision");
+	/*HideColumns(dtOutput, Index(n items(MainEffectsNames) + 5, n cols(dtOutput), 1));
+	jrn << append((dtOutput<< New Data Box()) << Clone Box);
+	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));*/
+	HideColumns(dtOutput, {4, 7, 8, 10, 12, 15, 16}+n items(MainEffectsNames));
+	jrn << append((dtOutput<< New Data Box()) << Clone Box);
+	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));
+	HideColumns(dtOutput, {3, 5, 6, 9, 11, 13, 14}+n items(MainEffectsNames));
+	jrn << append((dtOutput<< New Data Box()) << Clone Box);
+	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));
+	jrn << append(Page Break Box());
+	
+	//Linearity Report Summary Table
+	Header("Linearity Report Summary Table");
+	Column(dtlin, 1) << set name("Attribute");
+	Column(dtlin, 2) << set name("Reported Value (% of Tolerance)");
+	Column(dtlin, 3) << set name("Pass/Fail");
+	Column(dtlin, 3) << Delete Formula();
+	dtlin << new column("Specification Limit");
+	For(i=1, i<=n rows(dtlin), i++,
+		if(column(dtlin, 2)[i]<0, column(dtlin, 2)[i]=0);
+		if(column(dtlin, 3)[i]=="Pass Linearity Criterion", column(dtlin, 3)[i]="Pass",column(dtlin, 3)[i]="Fail")
+	);
+	Column(dtlin, 3) << Set Property(
+		"Value Colors",
+		{"Pass" = 76, "Fail" = 67}
+	);
+	Column(dtlin, "Specification Limit")[1] = LLinearityLim;
+	Column(dtlin, "Specification Limit")[2] = ULinearityLim;
+	Column(dtlin, "Specification Limit")[3] = LLinearityLim;
+	Column(dtlin, "Specification Limit")[4] = ULinearityLim;
+	Concentrations = column(dtOutput, 1) << get values();
+	Values = Column(dtMSD, "Bias % of Tolerance")  << get values;
+	pf = Column(dtMSD, "Accuracy Evaluation") << get values;
+ 	for(i=1, i<= n items(Concentrations), i++,
+		dtlin << add rows(1);
+		Column(dtlin, 1)[n rows(dtlin)] = "Accuracy/Bias " || char(Concentrations[i]);
+		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
+		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
+		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Accuracy"];
+	);
+	Close(dtMSD, no save);
+	BiasRange = FindBiggestRange(Concentrations, pf);
+	
+	Values = Column(dtOutput, "Repeatability % of Tolerance (n=1)") << get values;
+	pf = Column(dtOutput, "Repeatability Pass/Fail (n=1)") << get values;
+	for(i=1, i<= n items(Concentrations), i++,
+		dtlin << add rows(1);
+		Column(dtlin, 1)[n rows(dtlin)] = "Repeatability (n=1) " || char(Concentrations[i]);
+		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
+		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
+		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Repeatability"];
+	);
+	Repn1Range = FindBiggestRange(Concentrations, pf);
+	
+	Values = Column(dtOutput, "Repeatability % of Tolerance (n=3)") << get values;
+	pf = Column(dtOutput, "Repeatability Pass/Fail (n=3)") << get values;
+	for(i=1, i<= n items(Concentrations), i++,
+		dtlin << add rows(1);
+		Column(dtlin, 1)[n rows(dtlin)] = "Repeatability (n=3) " || char(Concentrations[i]);
+		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
+		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
+		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Repeatability"];
+	);
+	Repn3Range = FindBiggestRange(Concentrations, pf);
+	
+	Values = Column(dtOutput, "IP % of Tolerance (n=1)") << get values;
+	pf = Column(dtOutput, "Intermediate Precision Pass/Fail (n=1)") << get values;
+	for(i=1, i<= n items(Concentrations), i++,
+		dtlin << add rows(1);
+		Column(dtlin, 1)[n rows(dtlin)] = "Intermediate Precision (n=1) " || char(Concentrations[i]);
+		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
+		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
+		Column(dtlin, 4)[n rows(dtlin)] = Criterion["IP"];
+	);
+	IPn1Range = FindBiggestRange(Concentrations, pf);
+	
+	Values = Column(dtOutput, "IP % of Tolerance (n=3)") << get values;
+	pf = Column(dtOutput, "Intermediate Precision Pass/Fail (n=3)") << get values;
+	for(i=1, i<= n items(Concentrations), i++,
+		dtlin << add rows(1);
+		Column(dtlin, 1)[n rows(dtlin)] = "Intermediate Precision (n=3) " || char(Concentrations[i]);
+		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
+		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
+		Column(dtlin, 4)[n rows(dtlin)] = Criterion["IP"];
+	);
+	IPn3Range = FindBiggestRange(Concentrations, pf);
+	
+	Close(dtOutput, no save);
+	dtlin << New Column( "Reported Range", Character, "Nominal");
+	dtlin << add rows(1);
+	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range Curve (n=1)";
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
+		Range = eval list(
+			{
+				Max(
+					Column(dtlin, "Reported Value (% of Tolerance)")[1],
+					min(BiasRange),
+					min(Repn1Range),
+					min(IPn1Range)
+				),
+				min(
+					Column(dtlin, "Reported Value (% of Tolerance)")[2],
+					max(BiasRange),
+					max(Repn1Range),
+					max(IPn1Range)
+				)
+			}
+		);
+		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
+	,
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
+	);
+	dtlin << add rows(1);
+	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range Curve (n=3)";
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
+		Range = eval list(
+			{
+				Max(
+					Column(dtlin, "Reported Value (% of Tolerance)")[1],
+					min(BiasRange),
+					min(Repn3Range),
+					min(IPn3Range)
+				),
+				min(
+					Column(dtlin, "Reported Value (% of Tolerance)")[2],
+					max(BiasRange),
+					max(Repn3Range),
+					max(IPn3Range)
+				)
+			}
+		);
+		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
+	,
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
+	);
+	dtlin << add rows(1);
+	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range CI (n=1)";
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
+		Range = eval list(
+			{
+				Max(
+					Column(dtlin, "Reported Value (% of Tolerance)")[3],
+					min(BiasRange),
+					min(Repn1Range),
+					min(IPn1Range)
+				),
+				min(
+					Column(dtlin, "Reported Value (% of Tolerance)")[4],
+					max(BiasRange),
+					max(Repn1Range),
+					max(IPn1Range)
+				)
+			}
+		);
+		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
+	,
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
+	);
+	dtlin << add rows(1);
+	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range CI (n=3)";
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
+		Range = eval list(
+			{
+				Max(
+					Column(dtlin, "Reported Value (% of Tolerance)")[3],
+					min(BiasRange),
+					min(Repn3Range),
+					min(IPn3Range)
+				),
+				min(
+					Column(dtlin, "Reported Value (% of Tolerance)")[4],
+					max(BiasRange),
+					max(Repn3Range),
+					max(IPn3Range)
+				)
+			}
+		);
+		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
+	,
+		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
+	);
+	dtlin << Move Selected Columns({:Specification Limit}, after( :"Reported Value (% of Tolerance)"n ));
+	jrn << append((dtlin<< New Data Box()) << Clone Box);
+	Close(dtlin, no save);
+	
+	If(doLODQ,
+		jrn << append(Page Break Box());
+		Header("LOD and LOQ");
+		
+		//Outlier detection
+		If(OutlierDetection>1,
+			//Do multivariate by dose
+			MV = (dtlodloq << Multivariate(
+				Y( Column(LODLOQResponseNames[1]) ),
+				Estimation Method( "Row-wise" ),
+				Scatterplot Matrix( 1 ),
+				Pairwise Correlations( 1 ),
+				Mahalanobis Distances( 1 ),
+				Jackknife Distances( 1, <<Save Jackknife Distances ),
+				By(Column(LODLOQTheoreticalConcentrationNames[1]))
+			)) << close window(1);
+			try(column(dtlodloq, n cols(dtlodloq)) << Format( "Fixed Dec", 12, AxisDecimals ));
+			
+			eval(eval expr(dtlodloq << New Column( "Outlier",
+				Character,
+				"Nominal",
+				Formula(
+					If( expr(ColonWrapColumns(column(dtlodloq, n cols(dtlodloq))<<get name)) > expr(ksigma),
+						"Outlier",
+						"Ok"
+					)
+				),
+				Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+				Color Cell by Value
+			)));
+			If(OutlierDetection>2,
+				//Exclude Outliers
+				dtlodloq << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
+				dtlodloq << New Column( "Include/Exclude",
+					Character,
+					"Nominal",
+					Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
+				)
+			,
+				dtlodloq << New Column( "Include/Exclude",
+					Character,
+					"Nominal",
+					Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
+				);
+			)
+		);
+		
+		ow = dtlodloq << Oneway(
+			invisible,
+			Y( Column(LODLOQResponseNames[1]) ),
+			X( Column(LODLOQTheoreticalConcentrationNames[1]) ),
+			Means and Std Dev( 1 ),
+			Mean Diamonds( 1 ),
+			Mean Error Bars( 1 ),
+			Std Dev Lines( 1 )
+		);
+		LODLOQtbl = Report(ow)["Means and Std Deviations"][TableBox(1)] << Make Into Data Table(invisible);
+		ow << close window();
+		
+		LODLOQtbl << Delete Columns("Std Err Mean");
+		LODLOQtbl << Paste Columns(
+			{New Column( "LOD (n=1)",
+				Numeric,
+				"Continuous",
+				Format( "Best", 12 ),
+				Formula(
+					If( Row() == 1,
+						If( :Std Dev[1] == Col Minimum( :Std Dev ),
+							:Std Dev * 3.3,
+							Col Mean( :Std Dev ) * 3.3
+						)
+					)
+				)
+			), New Column( "LOQ (n=1)",
+				Numeric,
+				"Continuous",
+				Format( "Best", 12 ),
+				Formula(
+					If( Row() == 1,
+						If( :Std Dev[1] == Col Minimum( :Std Dev ),
+							:Std Dev * 10,
+							Col Mean( :Std Dev ) * 10
+						)
+					)
+				)
+			)}
+		);
+		Column(1) << set name(LODLOQTheoreticalConcentrationNames[1]);
+		If(arg(Column(dtlodloq, LODLOQResponseNames[1]) << get format, 1) == "Fixed Dec",
+			resolution = arg(Column(dtlodloq, LODLOQResponseNames[1]) << get format, 3),
+			resolution = length(word(2, char(Column(dtlodloq, LODLOQResponseNames[1])[1]),".,")) + 1
+		);
+		// Standardize column attributes
+		stdlist = {:Mean, :Std Dev, :Lower 95%, :Upper 95%, :"LOD (n=1)"n, :"LOQ (n=1)"n};
+		frmt = eval expr(Format( "Fixed Dec", 12, expr(resolution) ));
+		For( i=1, i<=n items(stdlist), i++,
+			stdlist[i] << Format( "Fixed Dec", 12, resolution )
+		);
+		If(NrOfRuns > 1,
+			eval(eval expr(LODLOQtbl << New Column( "LOD (n=" || Char(NrOfRuns) || ")",
+				Numeric,
+				"Continuous",
+				expr(name expr(frmt)),
+				Formula(
+					If( Row() == 1,
+						If( :Std Dev[1] == Col Minimum( :Std Dev ),
+							(:Std Dev/sqrt(expr(NrOfRuns))) * 3.3,
+							(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 3.3
+						)
+					)
+				)
+			)));
+			eval(eval expr(LODLOQtbl << New Column( "LOQ (n=" || Char(NrOfRuns) || ")",
+				Numeric,
+				"Continuous",
+				expr(name expr(frmt)),
+				Formula(
+					If( Row() == 1,
+						If( :Std Dev[1] == Col Minimum( :Std Dev ),
+							(:Std Dev/sqrt(expr(NrOfRuns))) * 10,
+							(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 10
+						)
+					)
+				)
+			)));
+		);
+		jrn << append((LODLOQtbl<< New Data Box()) << Clone Box);
+		If(:Std Dev[1] == Col Minimum( :Std Dev ),
+			jrn << append(Text Box("Only minimum Standard Deviation of the concentration used in calculation", <<set wrap(1000))),
+			jrn << append(Text Box("Average of the Standard Deviation of the two concentrations used for calculation", <<set wrap(1000)))
+		);
+		Close(LODLOQtbl, no save);
+		
+		Header("Data table LOD & LOQ");
+		jrn << append((dtlodloq << New Data Box()) << Clone Box);
+		If(OutlierDetection>1,
+			jrn << append(Text box("K Sigma: " || char(ksigma)))
+		);
+	);
+	
+	
+	
+	//Close journal with date
+	Text Box( "" ) << journal;
+	
+	Text Box(
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		<<set font size( 14 ),
+		<<font color( {0, 0, 0.5} ),
+		<<set wrap( 1300 )
+	) << journal();
+	
+	//Save journal
+	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
+	jrn << Set Window Title( FileName );
+	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+
+	//Define setup information to save in pdf
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.4 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Save PDF( DirPath || FileName || ".pdf" );
+	jrn << Save Journal( DirPath || FileName || ".jrn" );
+	//jrn << close window( 1 );
+	//NormalFonts;
+	
+	While(n items(window())>StartWindows,
+		window()[n items(window())] << close window(1);
+	);
+	
+);
+
+POVFun = Function(
+	{dt, Response, Factors, EffectsExpr, VB},
+	{Default local}, 
+	
+	summarize(
+		dt,
+		ResponseMean = Mean( column(Response << get name) ),
+		ReponseN = Count( column(Response << get name) ),
+		ResponseSD = Std Dev( column(Response << get name) ),
+		ResponseMin = Min( column(Response << get name) ),
+		ResponseMax = Max( column(Response << get name) )
+	);
+	ResponseVariance = ResponseSD ^ 2 * (ReponseN - 1) / ReponseN;
+	
+	//Create Variability Charts and append to VB list for Journal
+	eval(
+		Substitute(
+				Expr(
+					varchart = dt << Variability Chart(
+						invisible,
+						Ignore Platform Preferences( 1 ),
+						Y( _Response_ ),
+						X( _Factors_ ),
+						Model( "Main Effect" ),
+						Show Cell Means( 0 ),
+						Mean Diamonds( 0 ),
+						Connect Cell Means( 1 ),
+						Show Group Means( 1 ),
+						Show Grand Mean( 1 ),
+						Std Dev Chart( 1 ),
+						Group Means of Std Dev( 1 ),
+						Mean Plots( 1 ),
+						Std Dev Plots( 1 ),
+						Variance Components( 0 ),
+						Mean of Std Dev( 1 ),
+
+					)
+				),
+			Expr( _Factors_ ), Eval( Factors ),
+			Expr( _Response_), Response
+		)
+	);
+
+	VB << Append( Report( varchart ) );
+	varchart << close window();
+
+	//Open the Fit Model dialog for the between variation part of POV
+	eval(
+		Substitute(
+				Expr(
+					FitModelResults = dt << Fit Model(
+						invisible,
+						Ignore Platform Preferences( 1 ),
+						Y( _colListY_ ),
+						_EffectsExpr_,
+						Personality( "Standard Least Squares" ),
+						Emphasis( "Effect Leverage" ),
+						Run( Sequential Tests( 1 ) )
+					)
+				),
+			Expr( _colListY_ ), Response,
+			Expr( _EffectsExpr_ ), Name Expr( EffectsExpr ),
+
+		)
+	);
+	
+	ANOVASSB = Report( FitModelResults )[Outline Box( "Analysis of Variance" )][ColumnBox( "Sum of Squares" )] << get();  //Model, Error, C. Total
+	FractionBetweenTotal = ANOVASSB[1] / ANOVASSB[3]; //Model/C. Total
+	TotalVariances = Eval List( {FractionBetweenTotal, 1 - FractionBetweenTotal} ) * ResponseVariance;
+	
+	SSBetweenFactors = Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "Seq SS" )] << get();
+	Terms = Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "Source" )] << get();
+	BetweenVariances = TotalVariances[1] * SSBetweenFactors / Sum( SSBetweenFactors );
+
+	//Get total between factors F ratio and Prob value from Analysis of Variance
+	ftest = eval list(
+		concat(
+			{Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "F Ratio" )][1]},
+			Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "F Ratio" )] << get
+		)
+	);
+	probf = eval list(
+		concat(
+			{Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "Prob>F" )][1]},
+			Report( FitModelResults )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "Prob>F" )] << get
+		)
+	);
+	FitModelResults << close window;
+
+	//Create the variance table
+	dtVarianceTable = dt << Summary( invisible( TRUE ), Group( "private", Eval( Factors ) ), Variance( Eval( Response ) ), );
+	Column( 2 + N Items( Factors ) ) << set name( "Var" );
+	dtVarianceTable << New Column( "VarPop", Formula( If( Is Missing( Var ), 0, (:Var * (:N Rows - 1) / :N Rows) ) ) );
+	Column( "VarPop" ) << Eval Formula;
+
+	//Extract the common variance
+	Summarize( dtVarianceTable, CommonVariance = Min( :VarPop ) );
+
+	//Fit model on the Variance
+	eval(
+		Substitute(
+				Expr(
+					FitModelVariance = dtVarianceTable << Fit Model(
+						invisible,
+						Ignore Platform Preferences( 1 ),
+						Y( :VarPop ),
+						_EffectsExpr_,
+						Personality( "Standard Least Squares" ),
+						Emphasis( "Effect Leverage" ),
+						Run(
+							:VarPop << {Summary of Fit( 1 ), Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
+							Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ), Plot Regression( 0 ), Plot Residual by Predicted( 1 ),
+							Plot Residual by Row( 1 ), Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+							Plot Residual by Normal Quantiles( 0 ), Sequential Tests( 1 ), Box Cox Y Transformation( 0 ),
+							Show All Confidence Intervals( 1 ), Show VIF( 1 )}
+						)
+					)
+				),
+			Expr( _EffectsExpr_ ), Name Expr( EffectsExpr ),
+
+		)
+	);
+	
+	//Get the within variation components
+	SSWithinFactors = Report( FitModelVariance )[Outline Box( "Sequential (Type 1) Tests" )][ColumnBox( "Seq SS" )] << get;
+	If( And( Sum( SSWithinFactors ) == 0, CommonVariance == 0 ),
+		WithinVariances = SSWithinFactors,
+		WithinVariances = (TotalVariances[2] - CommonVariance/* - ResidualVariance*/) * SSWithinFactors / Sum( SSWithinFactors )
+	);
+	TotalWithinVariance = WithinVariances;
+	Insert Into( TotalWithinVariance, (CommonVariance) );
+	Close( dtVarianceTable, No Save );
+
+	//Create the POV table
+	BetweenLabels = List();
+	WithinLabels = List();
+
+	For( i = 1, i <= N Items( Terms ), i++,
+		BetweenLabels[i] = "  Between " || Terms[i];
+		WithinLabels[i] = "  Within " || Terms[i];
+	);
+	POVNames = Eval List( Concat( {"Total Between"}, BetweenLabels, {"", "Total Within"}, WithinLabels, {"  Common", "", "Grand Total"} ) );
+	POVVariance = eval list(
+		Concat( {TotalVariances[1]}, BetweenVariances, {., TotalVariances[2]}, TotalWithinVariance, {., Sum( TotalVariances )} )
+	);
+
+	POVPercent = 100 * POVVariance / POVVariance[N Items( POVVariance )];
+	POVStdDev = Sqrt( POVVariance );
+	
+	//Figure out rounding
+	If( Log10( ResponseVariance ) > 0,
+		dplaces = 3,
+		dplaces = 3 - Floor( Log10( ResponseVariance ) )
+	);
+	
+	//Create the data table for the pareto plot
+	dtn = New Table( "Variance Plot",
+		invisible,
+		New Column( "Variance Components", Character, Nominal, Width( 10 ), <<set values( Concat( BetweenLabels, WithinLabels, {"Common"} ) ) ),
+		New Column( "% of Total",
+			Numeric,
+			Continuous,
+			Format( "Best", 10 ),
+			<<set values( 100 * Concat( BetweenVariances, TotalWithinVariance ) / POVVariance[N Items( POVVariance )] )
+		),
+
+	);
+
+	//Create the pareto
+	try(
+		pchart = dtn << Pareto Plot(
+			invisible,
+			Cause( :Variance Components ),
+			Percent Scale( 1 ),
+			//Show Cum Percent Curve( 0 ),
+			Weight( :Name( "% of Total" ) ),
+			Category Legend( 0 ),
+			N Legend( 0 ),
+			Show Cum Percent Curve( 0 ),
+			/*SendToReport(
+				Dispatch( {"Plots"}, "106", ScaleBox, {Scale( Linear ), Format( Best ), Min( 0 ), Max( 100 ), Inc( 25 )} ),
+				Dispatch( {"Plots"}, "Count", TextEditBox, {Set Text( "% of total variation" )} )
+			)*/
+		)
+	);
+	
+	//Create the tile of the POV report
+	ob1 = Outline Box( "Partition of Variation (POV) Main Effect analysis",
+		H list box(
+			V list box(
+				Text Box( Char( N Items( Factors ) ) || " Factor POV Analysis.", <<Set Font Style( "Bold" ) ),
+				povtbl = Table Box(
+					String Col Box( "Component", POVNames ),
+					ncb1 = Number Col Box( "Pop Variance", POVVariance, <<set format( width = 10, decimalplaces = dplaces ) ),
+					ncb2 = Number Col Box( "% of Total",
+						100 * POVVariance / POVVariance[N Items( POVVariance )],
+						<<set format( width = 8, decimalplaces = 2 )
+					),
+					ncb3 = Number Col Box( "Sqrt(Var Comp)", Sqrt( POVVariance ), <<set format( width = 8, decimalplaces = dplaces ) ),
+					ncb4 = Number Col Box( "F Ratio", ftest, <<set format( width = 8, decimalplaces = 4 ) ),
+					ncb5 = Number Col Box( "Prob>F", probf, <<set format( width = 8, decimalplaces = 4 ) ),
+
+				)
+			),
+			Text Box( "     " ),
+			Try( Report( pchart )[List Box( 3 )] )
+		)
+	);
+
+	nam = dt << getname;
+	ByLevel = repeat(eval list({nam}), N items(POVNames));
+	SCB = String Col Box( "By", ByLevel);
+	povtbl << prepend( SCB );
+	
+	VB << Append( ob1 );
+	Close( dtn, No Save );
+	
+	Return( Eval List( {VB, BetweenLabels, WithinLabels, BetweenVariances, TotalVariances} ) );
+);

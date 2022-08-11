@@ -1,0 +1,379 @@
+﻿Names Default To Here( 1 );
+If( !Namespace Exists( "MVStability" ),
+	nsref = New Namespace(
+		"MVStability"
+	)
+);
+ScriptVersion = "2022-06-30";
+Include( "ReportTools.jsl" );
+
+//Check for an active table, if not present open dialog.
+dt = If( N Rows() > 0,
+	dt = Current Data Table(),
+	dt = try(
+		Open(),
+		Print( "No data table opened" );
+		Stop();
+	)
+);
+dt << Clear Select;
+dt << Clear Column Selection;
+path = dt << get path;
+bs = Contains( path, "\", -1 );
+fs = Contains( path, "/", -1 );
+m = max(bs, fs);
+DirPath = substr(path, 1, m);
+FilePath = substr(path, m+1);
+
+New Window( "Analytical Method Validation", 
+	Border Box( Left( 3 ), top( 2 ),
+		Panel Box( "",
+			V List Box(
+				H Center Box(
+					V List Box(
+						Baslogo,
+						Text Box(
+							"                                                                                (c) Bioassay sciences 2021 -" || char(year(Today())),
+							<<Set Font Size( 7 ),
+							<<Set wrap( 500 )
+						),
+					),
+				),
+				Text Box( "" ),
+				H list box(
+					pb = Panel Box( "Stability Indicating Study",
+						H list box(
+							Panel Box( "Select Columns",v list box(
+								colListDataSimple = Col list box( All, width( 253 ), grouped, nLines( 7 ) ),
+								Spacer box(size(1,2))
+								)	
+							),
+							Panel Box( "Cast Selected Columns into Roles",
+								Lineup Box( N Col( 2 ), Spacing( 3 ),
+									Button Box( "Response", ResponseBox << Append( colListDataSimple << GetSelected ) ),
+									ResponseBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 ) ),
+									Button Box( "Time", TimeBox << Append( colListDataSimple << GetSelected ) ),
+									TimeBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 )),
+									Button Box( "Descriptives", DescriptivesBox << Append( colListDataSimple << GetSelected ) ),
+									DescriptivesBox = Col List Box( width( 200 ), nLines( 1 ), MaxItems( 1 )),
+								)
+							)
+						)					
+					),
+					Panel Box("Outlier detection (needs >5 samples per concentration)",
+						h list box(
+							OutlierBox = Combo box({"Do not check", "Detect only", "Check and Exclude"}),
+							OutlierBox << set(3),
+							text box("K sigma "),
+							ksigmabox = number edit box(3)
+						)
+					),
+					Panel Box( "Action",
+						Lineup Box( N Col( 1 ),
+							Button Box( "OK",
+								Try(MVStability:ResponseNames = ResponseNames = ResponseBox << Get Items);
+								Try(MVStability:DescriptivesNames = DescriptivesNames = DescriptivesBox << Get Items);
+								Try(MVStability:TimeName = TimeName = TimeBox << Get Items);
+								MVStability:ksigma = ksigma = ksigmabox << get();
+								MVStability:OutlierDetection = OutlierDetection = OutlierBox << Get();
+								//Validate
+								If(
+									or(
+										n items(ResponseNames) < 1, 
+										n items(TimeName) < 1, 									
+									),
+									New window("Error", <<modal, Text box("You have a missing column!"))
+								,	
+									Current window() << close window();
+									MainBody;
+								);
+							),
+							Button Box( "Cancel",
+								Print( "User hit cancel" );
+								Current window() << close window();
+							),
+							Button Box("Recall",
+								Try(ResponseBox << Set Items(MVStability:ResponseNames));
+								Try(TimeBox << Set Items(MVStability:TimeName));
+								Try(DescriptivesBox << Set Items(MVStability:DescriptivesNames));
+								Try(OutlierBox << Set(MVStability:OutlierDetection));
+								Try(ksigmabox << Set(MVStability:ksigma));
+							),
+						)
+					),
+				)
+			)
+		)
+	)
+);
+
+ColonWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, parse(":" || Log Capture( Print( ColName[i] ) ) || "n"))
+		);
+		Return(ReturnList)
+	,
+		Return(parse(":" || Log Capture( Print( ColName ) ) || "n"))
+	);
+);
+
+FileNameFriendlyTimeFormat = Function({timestamp = today()},
+	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+);
+
+MainBody = expr(
+	StartWindows = n items(window());
+	//Create a blank journal
+	Temp window = New Window( dt << get name(), <<Journal);
+	jrn = Current Journal();
+	TimeOfReport = today();
+	//Titlepage
+	//ReportFonts;
+	jrn << append(Picture Box( BASLogo ));
+	VSpacer( 4 );
+	jrn<<Append(Text Box("Stability Indicating Report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	VSpacer( 1 );
+	
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 6 );
+	If(Host Is( "Windows" ),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		)),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USER" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		))
+	);
+	VSpacer( 8 );
+	DashedLine;
+	jrn << append(Text Box( "Analyst Signature/Date" ));
+	VSpacer( 4 );
+	DashedLine;
+	jrn << append(Text Box( "Reviewer Signature/Date" ));
+	VSpacer( 1 );
+	jrn << append(Page Break Box());
+	
+
+	
+	R2vals = Pvals = {};
+	FC = dt << Fit Curve(
+		invisible,
+		Y( column(ResponseNames) ),
+		X( column(TimeName) ),
+		Fit Linear,
+		Fit Exponential 3P,
+		By( column(DescriptivesNames) ) //als bestaat
+	);
+	insert into(R2vals, (report(FC)[Outline Box("Linear")]["Summary of Fit"][Table box(1)] << get)[2][6]);
+	insert into(Pvals, (report(FC)[Outline Box("Linear")]["Parameter Estimates"][Table box(1)] << get)["Prob > ChiSquare"][2]);
+	insert into(R2vals, (report(FC)[Outline Box("Exponential 3P")]["Summary of Fit"][Table box(1)] << get)[2][6]);
+	insert into(Pvals, (report(FC)[Outline Box("Exponential 3P")]["Parameter Estimates"][Table box(1)] << get)["Prob > ChiSquare"][3]);
+	FC << close window();
+	Biv = dt << Bivariate(
+		invisible,
+		Y( column(ResponseNames) ),
+		X( column(TimeName) ),
+		Fit Special( xTran( "Sqrt" ), {Line Color( {212, 73, 88} )} ),
+		By( column(DescriptivesNames) ) //als bestaat
+	);
+	insert into(R2vals, (report(Biv)["Summary of Fit"][Table box(1)] << get)[2][1]);
+	insert into(Pvals, (report(Biv)["Parameter Estimates"][Table box(1)] << get)["Prob>|t|"][2]);
+	Biv << close window();
+	
+	ModTbl = New Table( "Model tests",
+		Add Rows( 3 ),
+		Compress File When Saved( 1 ),
+		New Column( "Model",
+			Character,
+			"Nominal",
+			Set Values( {"Linear", "Exponential 3P", "Sqrt(X)"} )
+		),
+		New Column( "R-squared",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 4 ),
+			Set Values( matrix(R2vals) )
+		),
+		New Column( "P-value",
+			Numeric,
+			"Continuous",
+			Format( "PValue", 12 ),
+			Set Values( matrix(Pvals) )
+		)
+	);
+	
+	ModTbl << Sort(
+		By( :"R-squared"n ),
+		Replace Table,
+		Order( Descending )
+	);
+	BestModel = ModTbl[1,1];
+	
+	If(OutlierDetection>1,
+		//Only do outlier >5 time points
+		Match(BestModel,
+			"Linear",
+			eval(eval expr(FM = dt << Fit Model(
+				invisible,
+				Y( column(ResponseNames) ),
+				By( column(DescriptivesNames) ),
+				Effects(expr(ColonWrapColumns(TimeName[1]))),
+				Personality( "Standard Least Squares" ),
+				Emphasis( "Effect Leverage" ), run
+			)));
+			FM << Externally Studentized Residuals;
+			FM << close window();
+			"Exponential 3P",
+			FC = dt << Fit Curve(
+				invisible,
+				Y( column(ResponseNames) ),
+				X( column(TimeName) ),
+				Fit Exponential 3P(Save Studentized Residual Formula),
+				By( column(DescriptivesNames) ) //als bestaat
+			);
+			FC << close window;
+			"Sqrt(X)",
+			eval(eval expr(FM = dt << Fit Model(
+				invisible,
+				Y( column(ResponseNames) ),
+				By( column(DescriptivesNames) ),
+				Effects(
+					Transform Column(
+						expr(concat("Square Root[",TimeName[1],"]")),
+						Formula( Sqrt( expr(ColonWrapColumns(TimeName[1])) ) )
+					)
+				),
+				Personality( "Standard Least Squares" ),
+				Emphasis( "Effect Leverage" ), run
+			)));
+			FM << Externally Studentized Residuals;
+			FM << close window();
+		);
+		eval(eval expr(dt << New Column( "Outlier",
+			Character,
+			"Nominal",
+			Formula(
+				If( abs(expr(ColonWrapColumns(column(dt, n cols(dt))<<get name))) > expr(ksigma),
+					"Outlier",
+					"Ok"
+				)
+			),
+			Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+			Color Cell by Value
+		)));
+		If(OutlierDetection>2,
+			//Exclude Outliers
+			dt << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
+			)
+		,
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
+			);
+		);
+	);
+	
+	Header("Data table");
+	jrn << append((dt << New Data Box()) << Clone Box);
+	If(OutlierDetection>1,
+		jrn << append(Text box("K Sigma: " || char(ksigma)))
+	);
+	
+	Header("Model comparisson (all data)");
+	jrn << append((ModTbl << New Data Box()) << Clone Box);
+	Close(ModTbl, No save);
+	
+	Header("Best fitting model");
+	Match(BestModel,
+		"Linear",
+		FC = dt << Fit Curve(
+			invisible,
+			Y( column(ResponseNames) ),
+			X( column(TimeName) ),
+			Fit Linear,
+			By( column(DescriptivesNames) ) //als bestaat
+		);
+		jrn << append(Report(FC));
+		If((report(FC)[Outline Box("Linear")]["Parameter Estimates"][Table box(1)] << get)["Prob > ChiSquare"][2] < 0.05,
+			jrn << append(Text Box("\!n  Rate is significant, stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" ))),
+			jrn << append(Text Box("\!n  Rate is not significant, not stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" )))
+		);
+		FC << close window;
+	,
+		"Exponential 3P",
+		FC = dt << Fit Curve(
+			invisible,
+			Y( column(ResponseNames) ),
+			X( column(TimeName) ),
+			Fit Exponential 3P,
+			By( column(DescriptivesNames) ) //als bestaat
+		);
+		jrn << append(Report(FC));
+		If((report(FC)[Outline Box("Exponential 3P")]["Parameter Estimates"][Table box(1)] << get)["Prob > ChiSquare"][3] < 0.05,
+			jrn << append(Text Box("\!n  Rate is significant, stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" ))),
+			jrn << append(Text Box("\!n  Rate is not significant, not stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" )))
+		);
+		FC << close window;
+	,
+		"Sqrt(X)",
+		Biv = dt << Bivariate(
+			invisible,
+			Y( column(ResponseNames) ),
+			X( column(TimeName) ),
+			Fit Special( xTran( "Sqrt" ), {Line Color( {212, 73, 88} )} ),
+			By( column(DescriptivesNames) ) //als bestaat
+		);
+		jrn << append(Report(Biv));
+		If((report(Biv)["Parameter Estimates"][Table box(1)] << get)["Prob>|t|"][2] < 0.05,
+			jrn << append(Text Box("\!n  Rate is significant, stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" ))),
+			jrn << append(Text Box("\!n  Rate is not significant, not stability indicating", <<set wrap( 2000 ), << Set Font Size( 16 ), << set Font Style( "Bold" )))
+		);
+		Biv << close window();
+	);
+		
+	//Close journal with date
+	Text Box( "" ) << journal;
+	
+	Text Box(
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		<<set font size( 14 ),
+		<<font color( {0, 0, 0.5} ),
+		<<set wrap( 1300 )
+	) << journal();
+	
+	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
+	jrn << Set Window Title( FileName );
+	jrn << Set Print Footers( "© 2022 BioAssay Sciences, Thomas A. Little Consulting");
+
+	//Define setup information to save in pdf
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.6 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Save PDF( DirPath || FileName || ".pdf" );
+	jrn << Save Journal( DirPath || FileName || ".jrn" );
+	//jrn << close window( 1 );
+	//NormalFonts;
+	
+	While(n items(window())>StartWindows,
+		window()[n items(window())] << close window(1);
+	);
+);

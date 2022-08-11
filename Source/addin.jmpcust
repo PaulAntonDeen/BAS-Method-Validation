@@ -1,0 +1,111 @@
+<!-- JMP Add-In Builder created --><jm:menu_and_toolbar_customizations xmlns:jm="http://www.jmp.com/ns/menu" version="3">
+  <jm:insert_in_main_menu>
+    <jm:insert_after>
+      <jm:name></jm:name>
+      <jm:menu>
+        <jm:name>METHOD VALIDATION</jm:name>
+        <jm:caption>Method Validation</jm:caption>
+        <jm:command>
+          <jm:name>LINEARITY</jm:name>
+          <jm:caption>Linearity</jm:caption>
+          <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\Linearity Analysis.jsl</jm:action>
+          <jm:tip>Accuracy, IP, Repeatability, Linearity, Range, LOD, LOQ</jm:tip>
+          <jm:icon type="builtin">Bivariate</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>SPECIFICITY ID</jm:name>
+          <jm:caption>Specificity ID</jm:caption>
+          <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\Specificity ID.jsl</jm:action>
+          <jm:icon type="builtin">ModelComparison</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>SPECIFICITY INTERFERENCE</jm:name>
+          <jm:caption>Specificity Interference</jm:caption>
+          <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\Specificity Interference.jsl</jm:action>
+          <jm:icon type="builtin">MDS</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>STABILITY INDICATING</jm:name>
+          <jm:caption>Stability Indicating</jm:caption>
+          <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\Stability.jsl</jm:action>
+          <jm:icon type="builtin">Logistic</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>SOP</jm:name>
+          <jm:caption>SOP</jm:caption>
+          <jm:action type="text">FileName = "SOP.docx";
+AddinSourceLocation = "$ADDIN_HOME(com.bas.method_validation)/";
+
+if(Host is(windows),
+	filepath = convert file path(AddinSourceLocation||FileName,absolute,windows);
+	RunProgram(
+		Executable( "CMD.EXE" ),
+		Options( {"/c start \!"\!" \!"" || filepath || "\!""} ) // - /c start "" "/local/file/path"
+	)
+,
+	filepath = convert file path(AddinSourceLocation||FileName,absolute,posix);
+	RunProgram(
+		Executable( "/usr/bin/open" ),
+		Options( filepath ),
+		ReadFunction( "text" )
+	)
+);</jm:action>
+          <jm:icon type="builtin">ProjectFile</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>REFERENCE PAPER</jm:name>
+          <jm:caption>Reference Paper</jm:caption>
+          <jm:action type="text">FileName = "Best Practices for Analytical Method Validation Study Design.docx";
+AddinSourceLocation = "$ADDIN_HOME(com.bas.method_validation)/";
+
+if(Host is(windows),
+	filepath = convert file path(AddinSourceLocation||FileName,absolute,windows);
+	RunProgram(
+		Executable( "CMD.EXE" ),
+		Options( {"/c start \!"\!" \!"" || filepath || "\!""} ) // - /c start "" "/local/file/path"
+	)
+,
+	filepath = convert file path(AddinSourceLocation||FileName,absolute,posix);
+	RunProgram(
+		Executable( "/usr/bin/open" ),
+		Options( filepath ),
+		ReadFunction( "text" )
+	)
+);</jm:action>
+          <jm:icon type="builtin">ProjectFile</jm:icon>
+        </jm:command>
+        <jm:command>
+          <jm:name>CHECK FOR UPDATE</jm:name>
+          <jm:caption>Check for update</jm:caption>
+          <jm:action type="text">CheckUpdate = Function({AddinID, Repo}, {Default Local},
+	AvailableVersion = Try(
+		Parse(Load Text File(Repo || "version.txt")),
+		New window("Error",&lt;&lt;modal,Text Box("Could not find file version file"));
+		Stop();
+	);
+	CurrentVersion = Get Addin(AddinID) &lt;&lt; version;
+	If(AvailableVersion &gt; CurrentVersion,
+		Write("Updating " || AddinID || " from " || char(CurrentVersion) || " to " || char(AvailableVersion));
+		Save Text File(
+			"$TEMP/latest.jmpaddin",
+			Try(
+				Load Text File(Repo || "latest.jmpaddin", blob),
+				New window("Error",&lt;&lt;modal,Text Box("Could not find file .jmpaddin file"));
+				Stop();
+			);
+		);
+		Try(Open("$TEMP/latest.jmpaddin"));
+		Try(Delete file("$TEMP/latest.jmpaddin"));
+		New window("Result",&lt;&lt;modal,Text Box(AddinID || " version " || char(Get Addin(AddinID) &lt;&lt; version) || " now installed"));
+	,
+		New window("Result",&lt;&lt;modal,Text Box(char(CurrentVersion) || " is the newest version of " || AddinID));
+	);
+);
+CheckUpdate("com.bas.method_validation", "https://raw.githubusercontent.com/PaulAntonDeen/BAS-Method-Validation/main/");
+//CurrentVersion = Get Addin("nu.padc.addintest") &lt;&lt; version;</jm:action>
+          <jm:icon type="builtin">Refresh</jm:icon>
+        </jm:command>
+      </jm:menu>
+    </jm:insert_after>
+  </jm:insert_in_main_menu>
+</jm:menu_and_toolbar_customizations>

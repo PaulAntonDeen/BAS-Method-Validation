@@ -1,0 +1,308 @@
+﻿Names Default To Here( 1 );
+If( !Namespace Exists( "MValidationSpecificityID" ),
+	nsref = New Namespace(
+		"MValidationSpecificityID"
+	)
+);
+ScriptVersion = "2022-06-30";
+Include( "ReportTools.jsl" );
+
+//Check for an active table, if not present open dialog.
+dt = If( N Rows() > 0,
+	dt = Current Data Table(),
+	dt = try(
+		Open(),
+		Print( "No data table opened" );
+		Stop();
+	)
+);
+dt << Clear Select;
+dt << Clear Column Selection;
+path = dt << get path;
+bs = Contains( path, "\", -1 );
+fs = Contains( path, "/", -1 );
+m = max(bs, fs);
+DirPath = substr(path, 1, m);
+FilePath = substr(path, m+1);
+try(dt << Delete Columns({"Accuracy/Bias","Studentized Residuals Relative Potency %"}));
+
+New Window( "Method Validation - Specificity ID", 
+	Border Box( Left( 3 ), top( 2 ),
+		Panel Box( "",
+			V List Box(
+				H Center Box(
+					V List Box(
+						Baslogo,
+						Text Box(
+							"                                                                                (c) Bioassay sciences 2021 -" || char(year(Today())),
+							<<Set Font Size( 7 ),
+							<<Set wrap( 500 )
+						),
+					),
+				),
+				Text Box( "" ),
+				H list box(
+					pb = Panel Box( "Specificity ID Study",
+						H list box(
+							Panel Box( "Select Columns",v list box(
+								colListDataSimple = Col list box( All, width( 253 ), grouped, nLines( 4 ) ),
+								Spacer box(size(1,2))
+								)	
+							),
+							Panel Box( "Cast Selected Columns into Roles",
+								Lineup Box( N Col( 2 ), Spacing( 3 ),
+									Button Box( "Sample type", SampleBox << Append( colListDataSimple << GetSelected ) ),
+									SampleBox = Col List Box( width( 200 ), nLines( 1 ), MinItems( 1 ), MaxItems( 1 ) ),
+									Button Box( "Result", ResultBox << Append( colListDataSimple << GetSelected ) ),
+									ResultBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 ) )
+								)
+							)
+						)					
+					),
+					Panel Box("Within Dose Group Outliers",
+						h list box(
+							OutlierBox = Combo box({"Do not check", "Detect only", "Check and Exclude"}),
+							OutlierBox << set(3),
+							text box("K sigma "),
+							ksigmabox = number edit box(3)
+						)
+					),
+					Panel Box( "Action",
+						Lineup Box( N Col( 1 ),
+							Button Box( "OK",
+								Try(MValidationSpecificityID:SampleColName = SampleColName = SampleBox << Get Items);
+								Try(MValidationSpecificityID:ResultColName = ResultColName = ResultBox << Get Items);
+								Try(MValidationSpecificityID:AnalyticalMethod = AnalyticalMethod = AMBox << get text());
+								Try(MValidationSpecificityID:Unit = Unit = UnitBox << get text());
+								Try(MValidationSpecificityID:ksigma = ksigma = ksigmabox << get());
+								Try(MValidationSpecificityID:OutlierDetection = OutlierDetection = OutlierBox << Get());
+								//Validate
+								If(
+									or(
+										n items(SampleColName) < 1, 
+										n items(ResultColName) < 1,
+									),
+									New window("Error", <<modal, Text box("You have a missing field!"))
+								,	
+									Current window() << close window();
+									Controls = Associative Array(Column(dt, SampleColName) << get values) << get keys();
+									New window("Select positive control",
+										<<modal,
+										<<on validate(n items(lb << get selected()) == 1),
+										text box("Select the positive control (1 item only)"),
+										lb = list box(Controls),
+										Button box("Ok",
+											PControl = lb << get selected();
+										)
+									);
+									MainBody;
+								);
+							),
+							Button Box( "Cancel",
+								Print( "User hit cancel" );
+								Current window() << close window();
+							),
+							Button Box("Recall",
+								Try(SampleBox << Set Items(MValidationSpecificityID:SampleColName));
+								Try(ResultBox << Set Items(MValidationSpecificityID:ResultColName));
+								Try(AMBox << set text(MValidationSpecificityID:AnalyticalMethod));
+								Try(UnitBox << set text(MValidationSpecificityID:Unit));
+								Try(OutlierBox << Set(MValidationSpecificityID:OutlierDetection));
+								Try(ksigmabox << Set(MValidationSpecificityID:ksigma));
+							),
+						)
+					),
+				),
+				Panel box("Study descriptives",
+					Lineup Box( N Col( 2 ),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
+						Text box("Unit"),
+						UnitBox = Text edit box("%RP", << set width(1000)),
+					),
+				)
+			)
+		)
+	)
+);
+
+ColonWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, parse(":" || Log Capture( Print( ColName[i] ) ) || "n"))
+		);
+		Return(ReturnList)
+	,
+		Return(parse(":" || Log Capture( Print( ColName ) ) || "n"))
+	);
+);
+
+FileNameFriendlyTimeFormat = Function({timestamp = today()},
+	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+);
+
+MainBody = expr(
+	StartWindows = n items(window());
+	//Create a blank journal
+	Temp window = New Window( dt << get name(), <<Journal);
+	jrn = Current Journal();
+	TimeOfReport = today();
+
+	//Ttitle page
+	jrn << append(Picture Box( BASLogo ));
+	VSpacer( 4 );
+	jrn<<Append(Text Box("Specificity ID report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	VSpacer( 2 );
+	
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 2 );
+	jrn << append(
+		Text box(
+			"Analytical Method: " || AnalyticalMethod
+		)
+	);
+	VSpacer( 6 );
+	If(Host Is( "Windows" ),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		)),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USER" ),
+			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+		))
+	);
+	VSpacer( 8 );
+	DashedLine;
+	jrn << append(Text Box( "Analyst Signature/Date" ));
+	VSpacer( 4 );
+	DashedLine;
+	jrn << append(Text Box( "Reviewer Signature/Date" ));
+	VSpacer( 1 );
+	jrn << append(Page Break Box());
+	
+	//Outlier detection
+	If(OutlierDetection>1,
+		MV = (dt << Multivariate(
+			Y( ResultColName[1] ),
+			Estimation Method( "Row-wise" ),
+			Scatterplot Matrix( 1 ),
+			Pairwise Correlations( 1 ),
+			Mahalanobis Distances( 1 ),
+			Jackknife Distances( 1, <<Save Jackknife Distances ),
+			By(SampleColName[1])
+		)) << close window(1);
+		try(column(dt, n cols(dt)) << Format( "Fixed Dec", 12, 3 ));
+		
+		eval(eval expr(dt << New Column( "Outlier",
+			Character,
+			"Nominal",
+			Formula(
+				If( abs(expr(ColonWrapColumns(column(dt, n cols(dt))<<get name))) > expr(ksigma),
+					"Outlier",
+					"Ok"
+				)
+			),
+			Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+			Color Cell by Value
+		)));
+		If(OutlierDetection>2,
+			//Exclude Outliers
+			dt << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
+			)
+		,
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
+			);
+		)
+	);
+	
+	Header("Data table");
+	jrn << append((dt << New Data Box()) << Clone Box);
+	If(OutlierDetection>1,
+		jrn << append(Text box("K Sigma: " || char(ksigma)))
+	);
+	jrn << append(Page Break Box());
+	
+	ow = dt << Oneway(
+		invisible,
+		Y( ResultColName[1] ),
+		X( SampleColName[1] ),
+		Means( 1 ),
+		Mean Diamonds( 1 ),
+		SendToReport(
+			Dispatch(
+				{"Oneway Anova"},
+				"Means for Oneway Anova",
+				OutlineBox,
+				{Close( 1 ), Set Title( "" )}
+			)
+		)
+	);
+	row = Report(ow);
+	jrn << append(row);
+	If(arg(Column(dt, ResultColName[1]) << get format, 1) == "Fixed Dec",
+		resolution = arg(Column(dt, ResultColName[1]) << get format, 3),
+		resolution = length(word(2, char(Column(dt, ResultColName[1])[1]),".,")) + 1
+	);
+	Values = row[Outline Box("Pooled t Test")][Table box(1)] << Get As Matrix;
+	If(Values[6]<0.05,
+		jrn << append(Text Box("Analytical method is specific to analyte of interest"))
+	,
+		jrn << append(Text Box("Analytical method is not specific to analyte of interest"))
+	);
+	jrn << append(text box("Difference " || Char(Round(Values[1], resolution))));
+	jrn << append(text box("UCL Difference " || Char(Round(Values[5], resolution))));
+	jrn << append(text box("LCL Difference " || Char(Round(Values[7], resolution))));
+	If(Values[6]<0.05,
+		jrn << append(Text Box(PControl[1] || " is significantly different than " || Remove(Controls,Loc(Controls, PControl[1])[1])[1]))
+	,
+		jrn << append(Text Box(PControl[1] || " is not significantly different than " || Remove(Controls,Loc(Controls, PControl[1])[1])[1]))
+	);
+	ow << close window();
+	
+	//Close journal with date
+	VSpacer(10);
+	
+	jrn << append(Text Box(
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		<<set font size( 14 ),
+		<<font color( {0, 0, 0.5} ),
+		<<set wrap( 1300 )
+	));
+	
+	//Save journal
+	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
+	jrn << Set Window Title( FileName );
+	jrn << Set Print Footers( "© 2022 BioAssay Sciences, Thomas A. Little Consulting");
+
+	//Define setup information to save in pdf
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Save PDF( DirPath || FileName || ".pdf" );
+	jrn << Save Journal( DirPath || FileName || ".jrn" );
+	//jrn << close window( 1 );
+	
+	While(n items(window())>StartWindows,
+		window()[n items(window())] << close window(1);
+	);
+	
+);
