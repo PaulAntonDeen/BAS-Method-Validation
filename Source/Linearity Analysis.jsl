@@ -4,7 +4,6 @@ If( !Namespace Exists( "AMValidation" ),
 		"AMValidation"
 	)
 );
-ScriptVersion = "2022-06-30";
 Include( "ReportTools.jsl" );
 
 //Check for an active table, if not present open dialog.
@@ -111,7 +110,6 @@ New Window( "Analytical Method Validation",
 								Try(AMValidation:Criterion = NCB << get);
 								Try(Criterion = Associative Array({"Accuracy", "Repeatability", "IP", "Upper Linearity Limit", "Lower Linearity Limit"}, NCB << get));
 								AMValidation:OutlierDetection = OutlierDetection = OutlierBox << Get();
-								AMValidation:doLODQ = doLODQ = dolodloqcb << get();
 								//Validate
 								If(or(
 									is missing(USL),
@@ -150,8 +148,6 @@ New Window( "Analytical Method Validation",
 								Try(NCB << set(AMValidation:Criterion));
 								Try(OutlierBox << Set(AMValidation:OutlierDetection));
 								Try(ksigmabox << Set(AMValidation:ksigma));
-								Try(dolodloqcb << Set(AMValidation:doLODQ));
-								If(dolodloqcb << get, lodloqif << set(1), lodloqif << set(0));
 							),
 						)
 					),
@@ -171,52 +167,6 @@ New Window( "Analytical Method Validation",
 						Text box("Standard Expiry"),
 						StandardExpiryBox = Text edit box(""),
 					),
-				),
-				H Center Box(
-					v list box(
-						dolodloqcb = Check box("Calculate Limit of Detection (LOD) and Limit of Quantitation (LOQ)", If(dolodloqcb << get, lodloqif << set(1), lodloqif << set(0))),
-						lodloqif = if box(0,
-							Panel Box("LOD and LOQ",
-								v list box(
-									Text box("Select data table with LOD and LOQ characterization doses"),
-									lb = list box(Get Data Table List()),
-									Button box("Specify columns",
-										dtlodloq = data table((lb << Get Selected)[1]);
-										Current Data Table(dtlodloq);
-										nw2 = new window("LODLOQ", <<modal,
-											H list box(
-												Panel Box( "Select Columns",v list box(
-													clb = Col list box( All, width( 253 ), grouped, nLines( 4 ) ),
-													Spacer box(size(1,2))
-													)	
-												),
-												Panel Box( "Cast Selected Columns into Roles",
-													Lineup Box( N Col( 2 ), Spacing( 3 ),
-														Button Box( "Response", LODLOQResponseBox << Append( clb << GetSelected ) ),
-														LODLOQResponseBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 )),
-														Button Box( "Theoretical Concentration/Dilution", LODLOQTheoreticalConcentrationBox << Append( clb << GetSelected ) ),
-														LODLOQTheoreticalConcentrationBox = Col List Box( width( 200 ), nLines( 1 ), MinItems( 1 ), MaxItems( 1 )),
-													)
-												),
-												Panel Box( "Sample Specifications",
-													h list box(
-														Text box("Number of independent runs"),
-														NrOfRunsBox = Number Edit Box(1),
-													)
-												),
-												Button Box( "OK",
-													Try(AMValidation:LODLOQResponseNames = LODLOQResponseNames = LODLOQResponseBox << Get Items);
-													Try(AMValidation:LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationBox << Get Items);
-													Try(AMValidation:NrOfRuns = NrOfRuns = NrOfRunsBox << Get);
-													Current Data Table(dt);
-												)
-											)
-										)
-									)
-								)
-							)
-						)
-					)
 				)
 			)
 		)
@@ -411,11 +361,11 @@ MainBody = expr(
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
 			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
-			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
 		)),
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USER" ),
-			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
 		))
 	);
 	VSpacer( 8 );
@@ -1163,153 +1113,11 @@ MainBody = expr(
 	jrn << append((dtlin<< New Data Box()) << Clone Box);
 	Close(dtlin, no save);
 	
-	If(doLODQ,
-		jrn << append(Page Break Box());
-		Header("LOD and LOQ");
-		
-		//Outlier detection
-		If(OutlierDetection>1,
-			//Do multivariate by dose
-			MV = (dtlodloq << Multivariate(
-				Y( Column(LODLOQResponseNames[1]) ),
-				Estimation Method( "Row-wise" ),
-				Scatterplot Matrix( 1 ),
-				Pairwise Correlations( 1 ),
-				Mahalanobis Distances( 1 ),
-				Jackknife Distances( 1, <<Save Jackknife Distances ),
-				By(Column(LODLOQTheoreticalConcentrationNames[1]))
-			)) << close window(1);
-			try(column(dtlodloq, n cols(dtlodloq)) << Format( "Fixed Dec", 12, AxisDecimals ));
-			
-			eval(eval expr(dtlodloq << New Column( "Outlier",
-				Character,
-				"Nominal",
-				Formula(
-					If( expr(ColonWrapColumns(column(dtlodloq, n cols(dtlodloq))<<get name)) > expr(ksigma),
-						"Outlier",
-						"Ok"
-					)
-				),
-				Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
-				Color Cell by Value
-			)));
-			If(OutlierDetection>2,
-				//Exclude Outliers
-				dtlodloq << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
-				dtlodloq << New Column( "Include/Exclude",
-					Character,
-					"Nominal",
-					Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
-				)
-			,
-				dtlodloq << New Column( "Include/Exclude",
-					Character,
-					"Nominal",
-					Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
-				);
-			)
-		);
-		
-		ow = dtlodloq << Oneway(
-			invisible,
-			Y( Column(LODLOQResponseNames[1]) ),
-			X( Column(LODLOQTheoreticalConcentrationNames[1]) ),
-			Means and Std Dev( 1 ),
-			Mean Diamonds( 1 ),
-			Mean Error Bars( 1 ),
-			Std Dev Lines( 1 )
-		);
-		LODLOQtbl = Report(ow)["Means and Std Deviations"][TableBox(1)] << Make Into Data Table(invisible);
-		ow << close window();
-		
-		LODLOQtbl << Delete Columns("Std Err Mean");
-		LODLOQtbl << Paste Columns(
-			{New Column( "LOD (n=1)",
-				Numeric,
-				"Continuous",
-				Format( "Best", 12 ),
-				Formula(
-					If( Row() == 1,
-						If( :Std Dev[1] == Col Minimum( :Std Dev ),
-							:Std Dev * 3.3,
-							Col Mean( :Std Dev ) * 3.3
-						)
-					)
-				)
-			), New Column( "LOQ (n=1)",
-				Numeric,
-				"Continuous",
-				Format( "Best", 12 ),
-				Formula(
-					If( Row() == 1,
-						If( :Std Dev[1] == Col Minimum( :Std Dev ),
-							:Std Dev * 10,
-							Col Mean( :Std Dev ) * 10
-						)
-					)
-				)
-			)}
-		);
-		Column(1) << set name(LODLOQTheoreticalConcentrationNames[1]);
-		If(arg(Column(dtlodloq, LODLOQResponseNames[1]) << get format, 1) == "Fixed Dec",
-			resolution = arg(Column(dtlodloq, LODLOQResponseNames[1]) << get format, 3),
-			resolution = length(word(2, char(Column(dtlodloq, LODLOQResponseNames[1])[1]),".,")) + 1
-		);
-		// Standardize column attributes
-		stdlist = {:Mean, :Std Dev, :Lower 95%, :Upper 95%, :"LOD (n=1)"n, :"LOQ (n=1)"n};
-		frmt = eval expr(Format( "Fixed Dec", 12, expr(resolution) ));
-		For( i=1, i<=n items(stdlist), i++,
-			stdlist[i] << Format( "Fixed Dec", 12, resolution )
-		);
-		If(NrOfRuns > 1,
-			eval(eval expr(LODLOQtbl << New Column( "LOD (n=" || Char(NrOfRuns) || ")",
-				Numeric,
-				"Continuous",
-				expr(name expr(frmt)),
-				Formula(
-					If( Row() == 1,
-						If( :Std Dev[1] == Col Minimum( :Std Dev ),
-							(:Std Dev/sqrt(expr(NrOfRuns))) * 3.3,
-							(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 3.3
-						)
-					)
-				)
-			)));
-			eval(eval expr(LODLOQtbl << New Column( "LOQ (n=" || Char(NrOfRuns) || ")",
-				Numeric,
-				"Continuous",
-				expr(name expr(frmt)),
-				Formula(
-					If( Row() == 1,
-						If( :Std Dev[1] == Col Minimum( :Std Dev ),
-							(:Std Dev/sqrt(expr(NrOfRuns))) * 10,
-							(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 10
-						)
-					)
-				)
-			)));
-		);
-		jrn << append((LODLOQtbl<< New Data Box()) << Clone Box);
-		If(:Std Dev[1] == Col Minimum( :Std Dev ),
-			jrn << append(Text Box("Only minimum Standard Deviation of the concentration used in calculation", <<set wrap(1000))),
-			jrn << append(Text Box("Average of the Standard Deviation of the two concentrations used for calculation", <<set wrap(1000)))
-		);
-		Close(LODLOQtbl, no save);
-		
-		Header("Data table LOD & LOQ");
-		jrn << append((dtlodloq << New Data Box()) << Clone Box);
-		If(OutlierDetection>1,
-			jrn << append(Text box("K Sigma: " || char(ksigma)))
-		);
-	);
-	
-	
-	
 	//Close journal with date
 	Text Box( "" ) << journal;
 	
 	Text Box(
-		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", Addin Version: " || char(Get addin("com.bas.method_validation") << version) ,
 		<<set font size( 14 ),
 		<<font color( {0, 0, 0.5} ),
 		<<set wrap( 1300 )

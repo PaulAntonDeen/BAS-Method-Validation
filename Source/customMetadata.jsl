@@ -2,9 +2,9 @@
 
 Associative Array(
 	List(
-		List( "addinVersion", 2208111545 ),
+		List( "addinVersion", 2208111603 ),
 		List( "author", "" ),
-		List( "buildDate", 3743078236 ),
+		List( "buildDate", 3743181479 ),
 		List( "deployedAddinsFilename", "publishedAddins.jsl" ),
 		List( "deployedAddinsLoc", "" ),
 		List( "id", "com.bas.method_validation" ),

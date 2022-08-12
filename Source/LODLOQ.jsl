@@ -1,0 +1,334 @@
+﻿Names Default To Here( 1 );
+If( !Namespace Exists( "AMValidation" ),
+	nsref = New Namespace(
+		"AMValidation"
+	)
+);
+ScriptVersion = "2022-06-30";
+Include( "ReportTools.jsl" );
+
+//Check for an active table, if not present open dialog.
+dt = If( N Rows() > 0,
+	dt = Current Data Table(),
+	dt = try(
+		Open(),
+		Print( "No data table opened" );
+		Stop();
+	)
+);
+dt << Clear Select;
+dt << Clear Column Selection;
+path = dt << get path;
+bs = Contains( path, "\", -1 );
+fs = Contains( path, "/", -1 );
+m = max(bs, fs);
+DirPath = substr(path, 1, m);
+FilePath = substr(path, m+1);
+
+New Window( "Analytical Method Validation", 
+	Border Box( Left( 3 ), top( 2 ),
+		Panel Box( "",
+			V List Box(
+				H Center Box(
+					V List Box(
+						Baslogo,
+						Text Box(
+							"                                                                                (c) Bioassay sciences 2021 -" || char(year(Today())),
+							<<Set Font Size( 7 ),
+							<<Set wrap( 500 )
+						),
+					),
+				),
+				Text Box( "" ),
+				H list box(
+					pb = Panel Box( "Limit of Detection / Limit of Quantitation",
+						H list box(
+							Panel Box( "Select Columns",v list box(
+								clb = Col list box( All, width( 253 ), grouped, nLines( 4 ) ),
+								Spacer box(size(1,2))
+								)	
+							),
+							Panel Box( "Cast Selected Columns into Roles",
+								Lineup Box( N Col( 2 ), Spacing( 3 ),
+									Button Box( "Response", LODLOQResponseBox << Append( clb << GetSelected ) ),
+									LODLOQResponseBox = Col List Box( width( 200 ), nLines( 1 ), numeric, MinItems( 1 ), MaxItems( 1 )),
+									Button Box( "Theoretical Concentration/Dilution", LODLOQTheoreticalConcentrationBox << Append( clb << GetSelected ) ),
+									LODLOQTheoreticalConcentrationBox = Col List Box( width( 200 ), nLines( 1 ), MinItems( 1 ), MaxItems( 1 )),
+								)
+							),
+							Lineup Box( N Col( 1 ),
+								Panel Box( "Sample Specifications",
+									h list box(
+										Text box("Number of independent runs      "),
+										NrOfRunsBox = Number Edit Box(1),
+									)
+								),
+								Panel Box("Within Dose Group Outliers",
+									h list box(
+										OutlierBox = Combo box({"Do not check", "Detect only", "Check and Exclude"}),
+										OutlierBox << set(3),
+										text box("K sigma "),
+										ksigmabox = number edit box(3)
+									)
+								)
+							),
+							Panel Box( "Action",
+								Lineup Box( N Col( 1 ),
+									Button Box( "OK",
+										Try(AMValidation:LODLOQResponseNames = LODLOQResponseNames = LODLOQResponseBox << Get Items);
+										Try(AMValidation:LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationNames = LODLOQTheoreticalConcentrationBox << Get Items);
+										Try(AMValidation:NrOfRuns = NrOfRuns = NrOfRunsBox << Get);
+										AMValidation:OutlierDetection = OutlierDetection = OutlierBox << Get();
+										AMValidation:ksigma = ksigma = ksigmabox << get();
+										Current window() << close window();
+										MainBody;
+									),
+									Button Box( "Cancel",
+										Print( "User hit cancel" );
+										Current window() << close window();
+									),
+									Button Box("Recall",
+										Try(LODLOQResponseBox << Set Items(AMValidation:LODLOQResponseNames));
+										Try(LODLOQTheoreticalConcentrationBox << Set Items(AMValidation:LODLOQTheoreticalConcentrationNames));
+										Try(NrOfRunsBox << Set(AMValidation:NrOfRuns));
+										Try(OutlierBox << Set(AMValidation:OutlierDetection));
+										Try(ksigmabox << Set(AMValidation:ksigma));
+									)
+								)
+							)
+						)
+					)
+				)
+			)
+		)
+	)
+);
+
+FileNameFriendlyTimeFormat = Function({timestamp = today()},
+	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+);
+
+
+ColonWrapColumns = Function({ColName},{default local},
+	ReturnList = {};
+	If(is list(ColName),	
+		For(i=1, i<=n items(ColName), i++,
+			insert into(ReturnList, parse(":" || Log Capture( Print( ColName[i] ) ) || "n"))
+		);
+		Return(ReturnList)
+	,
+		Return(parse(":" || Log Capture( Print( ColName ) ) || "n"))
+	);
+);
+
+MainBody = expr(
+	StartWindows = n items(window());
+	//Create a blank journal
+	Temp window = New Window( dt << get name(), <<Journal);
+	jrn = Current Journal();
+	TimeOfReport = today();
+	Current Data Table(dt);
+	
+	//Titlepage
+	jrn << append(Picture Box( BASLogo ));
+	VSpacer( 4 );
+	jrn<<Append(Text Box("Limit of Detection / Limit of Quantitation report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	VSpacer( 1 );
+
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 6 );
+	If(Host Is( "Windows" ),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
+		)),
+		jrn << append(String Col Box( "User Information",
+			{"User Name: " || Get Environment Variable( "USER" ),
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
+		))
+	);
+	VSpacer( 8 );
+	DashedLine;
+	jrn << append(Text Box( "Analyst Signature/Date" ));
+	VSpacer( 4 );
+	DashedLine;
+	jrn << append(Text Box( "Reviewer Signature/Date" ));
+	VSpacer( 1 );
+	jrn << append(Page Break Box());
+
+	Header("LOD and LOQ");
+	//Outlier detection
+	If(OutlierDetection>1,
+		//Do multivariate by dose
+		MV = (dt << Multivariate(
+			Y( ColonWrapColumns(LODLOQResponseNames[1]) ),
+			Estimation Method( "Row-wise" ),
+			Scatterplot Matrix( 1 ),
+			Pairwise Correlations( 1 ),
+			Mahalanobis Distances( 1 ),
+			Jackknife Distances( 1, <<Save Jackknife Distances ),
+			By(ColonWrapColumns(LODLOQTheoreticalConcentrationNames[1]))
+		)) << close window(1);
+		try(column(dt, n cols(dt)) << Format( "Fixed Dec", 12, AxisDecimals ));
+		
+		eval(eval expr(dt << New Column( "Outlier",
+			Character,
+			"Nominal",
+			Formula(
+				If( abs(expr(ColonWrapColumns(column(dt, n cols(dt))<<get name))) > expr(ksigma),
+					"Outlier",
+					"Ok"
+				)
+			),
+			Set Property( "Value Colors", {"Ok" = 76, "Outlier" = 67} ),
+			Color Cell by Value
+		)));
+		If(OutlierDetection>2,
+			//Exclude Outliers
+			dt << Select Where(:Outlier == "Outlier") << Hide and Exclude(1) << Clear Select();
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Excluded", "Included" ) ),
+			)
+		,
+			dt << New Column( "Include/Exclude",
+				Character,
+				"Nominal",
+				Formula( If( :Outlier == "Outlier", "Included", "Included" ) ),
+			);
+		)
+	);
+	
+	ow = dt << Oneway(
+		invisible,
+		Y( Column(LODLOQResponseNames[1]) ),
+		X( Column(LODLOQTheoreticalConcentrationNames[1]) ),
+		Means and Std Dev( 1 ),
+		Mean Diamonds( 1 ),
+		Mean Error Bars( 1 ),
+		Std Dev Lines( 1 )
+	);
+
+	LODLOQtbl = Report(ow)["Means and Std Deviations"][TableBox(1)] << Make Into Data Table(invisible);
+	ow << close window();
+	
+	LODLOQtbl << Delete Columns("Std Err Mean");
+	LODLOQtbl << Paste Columns(
+		{New Column( "LOD (n=1)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula(
+				If( Row() == 1,
+					If( :Std Dev[1] == Col Minimum( :Std Dev ),
+						:Std Dev * 3.3,
+						Col Mean( :Std Dev ) * 3.3
+					)
+				)
+			)
+		), New Column( "LOQ (n=1)",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Formula(
+				If( Row() == 1,
+					If( :Std Dev[1] == Col Minimum( :Std Dev ),
+						:Std Dev * 10,
+						Col Mean( :Std Dev ) * 10
+					)
+				)
+			)
+		)}
+	);
+	Column(1) << set name(LODLOQTheoreticalConcentrationNames[1]);
+	If(arg(Column(dt, LODLOQResponseNames[1]) << get format, 1) == "Fixed Dec",
+		resolution = arg(Column(dt, LODLOQResponseNames[1]) << get format, 3),
+		resolution = length(word(2, char(Column(dt, LODLOQResponseNames[1])[1]),".,")) + 1
+	);
+	// Standardize column attributes
+	stdlist = {:Mean, :Std Dev, :Lower 95%, :Upper 95%, :"LOD (n=1)"n, :"LOQ (n=1)"n};
+	frmt = eval expr(Format( "Fixed Dec", 12, expr(resolution) ));
+	For( i=1, i<=n items(stdlist), i++,
+		stdlist[i] << Format( "Fixed Dec", 12, resolution )
+	);
+	If(NrOfRuns > 1,
+		eval(eval expr(LODLOQtbl << New Column( "LOD (n=" || Char(NrOfRuns) || ")",
+			Numeric,
+			"Continuous",
+			expr(name expr(frmt)),
+			Formula(
+				If( Row() == 1,
+					If( :Std Dev[1] == Col Minimum( :Std Dev ),
+						(:Std Dev/sqrt(expr(NrOfRuns))) * 3.3,
+						(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 3.3
+					)
+				)
+			)
+		)));
+		eval(eval expr(LODLOQtbl << New Column( "LOQ (n=" || Char(NrOfRuns) || ")",
+			Numeric,
+			"Continuous",
+			expr(name expr(frmt)),
+			Formula(
+				If( Row() == 1,
+					If( :Std Dev[1] == Col Minimum( :Std Dev ),
+						(:Std Dev/sqrt(expr(NrOfRuns))) * 10,
+						(Col Mean( :Std Dev )/sqrt(expr(NrOfRuns))) * 10
+					)
+				)
+			)
+		)));
+	);
+	jrn << append((LODLOQtbl<< New Data Box()) << Clone Box);
+	If(:Std Dev[1] == Col Minimum( :Std Dev ),
+		jrn << append(Text Box("Only minimum Standard Deviation of the concentration used in calculation", <<set wrap(1000))),
+		jrn << append(Text Box("Average of the Standard Deviation of the two concentrations used for calculation", <<set wrap(1000)))
+	);
+	Close(LODLOQtbl, no save);
+	
+	Header("Data table LOD & LOQ");
+	jrn << append((dt << New Data Box()) << Clone Box);
+	If(OutlierDetection>1,
+		jrn << append(Text box("K Sigma: " || char(ksigma)))
+	);
+	
+	//Close journal with date
+	Text Box( "" ) << journal;
+	
+	Text Box(
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", Addin Version: " || char(Get Addin("com.bas.method_validation") << version) ,
+		<<set font size( 14 ),
+		<<font color( {0, 0, 0.5} ),
+		<<set wrap( 1300 )
+	) << journal();
+	
+	//Save journal
+	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
+	jrn << Set Window Title( FileName );
+	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+
+	//Define setup information to save in pdf
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Save PDF( DirPath || FileName || ".pdf" );
+	jrn << Save Journal( DirPath || FileName || ".jrn" );
+	//jrn << close window( 1 );
+	//NormalFonts;
+	
+	While(n items(window())>StartWindows,
+		window()[n items(window())] << close window(1);
+	);
+	
+);

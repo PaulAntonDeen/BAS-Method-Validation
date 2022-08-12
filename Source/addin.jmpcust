@@ -13,6 +13,13 @@
           <jm:icon type="builtin">Bivariate</jm:icon>
         </jm:command>
         <jm:command>
+          <jm:name>LOD/LOQ</jm:name>
+          <jm:caption>LOD/LOQ</jm:caption>
+          <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\LODLOQ.jsl</jm:action>
+          <jm:tip>Limit of Detection / Limit of Quantitation</jm:tip>
+          <jm:icon type="builtin">ManageSpecLimits</jm:icon>
+        </jm:command>
+        <jm:command>
           <jm:name>SPECIFICITY ID</jm:name>
           <jm:caption>Specificity ID</jm:caption>
           <jm:action type="path">$ADDIN_HOME(com.bas.method_validation)\Specificity ID.jsl</jm:action>

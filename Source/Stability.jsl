@@ -4,7 +4,6 @@ If( !Namespace Exists( "MVStability" ),
 		"MVStability"
 	)
 );
-ScriptVersion = "2022-06-30";
 Include( "ReportTools.jsl" );
 
 //Check for an active table, if not present open dialog.
@@ -153,11 +152,11 @@ MainBody = expr(
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
 			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
-			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
 		)),
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USER" ),
-			"Script version: " || ScriptVersion, Concat( "JMP Version: ", JMP Version() )}
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
 		))
 	);
 	VSpacer( 8 );
@@ -356,7 +355,7 @@ MainBody = expr(
 	Text Box( "" ) << journal;
 	
 	Text Box(
-		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", script Version: " || ScriptVersion ,
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", Addin Version: " || char(Get addin("com.bas.method_validation") << version) ,
 		<<set font size( 14 ),
 		<<font color( {0, 0, 0.5} ),
 		<<set wrap( 1300 )
