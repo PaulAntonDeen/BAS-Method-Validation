@@ -475,10 +475,11 @@ MainBody = expr(
 		)
 	);
 	Report(biv)[OutlineBox(1)] << Set Title( "Linearity Evaluation" );
+	biv << (Curve[1] << save studentized Residuals());
 	jrn << append(Report(biv));
 	biv << close window(1);
 	
-	biv = dt << Bivariate(
+	/*biv = dt << Bivariate(
 		Y( ColumnWrapColumns(ResponseNames[1]) ),
 		X(  ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
 		Fit Line( {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
@@ -512,11 +513,11 @@ MainBody = expr(
 			),
 			Dispatch( {}, "Linear Fit", Outline Box( 2 ), {Close( 1 )} )
 		)
-	);
-	biv << (Curve[1] << save studentized Residuals());
+	);*/
+	
 	column(dt, n cols(dt)) << Set Format( "Fixed Dec", 12, 3 );
 	
-	biv << close window(1);
+	//biv << close window(1);
 	jrn << append(Page Break Box());
 	
 	//Range of linearity
