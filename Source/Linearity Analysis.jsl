@@ -479,45 +479,8 @@ MainBody = expr(
 	jrn << append(Report(biv));
 	biv << close window(1);
 	
-	/*biv = dt << Bivariate(
-		Y( ColumnWrapColumns(ResponseNames[1]) ),
-		X(  ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
-		Fit Line( {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
-		Fit Special( Intercept( 0 ), Slope( 1 ), {Line Color( {61, 174, 70} )} ),
-		invisible,
-		SendToReport(
-			Dispatch(
-				{},
-				ResponseNames[1],
-				ScaleBox,
-				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
-			),
-			Dispatch(
-				{},
-				TheoreticalConcentrationNames[1],
-				ScaleBox,
-				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
-			),
-			Dispatch( {}, "Bivar Plot", FrameBox, {Frame Size( 300, 300 )} ),
-			Dispatch(
-				{"Linear Fit", "Parameter Estimates"},
-				"Lower 95%",
-				NumberColBox,
-				{Visibility( "Visible" )}
-			),
-			Dispatch(
-				{"Linear Fit", "Parameter Estimates"},
-				"Upper 95%",
-				NumberColBox,
-				{Visibility( "Visible" )}
-			),
-			Dispatch( {}, "Linear Fit", Outline Box( 2 ), {Close( 1 )} )
-		)
-	);*/
-	
 	column(dt, n cols(dt)) << Set Format( "Fixed Dec", 12, 3 );
 	
-	//biv << close window(1);
 	jrn << append(Page Break Box());
 	
 	//Range of linearity
