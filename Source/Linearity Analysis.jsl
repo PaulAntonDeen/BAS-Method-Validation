@@ -115,7 +115,7 @@ New Window( "Analytical Method Validation",
 									is missing(USL),
 									is missing(LSL), 
 									n items(ResponseNames) < 1, 
-									n items(MainEffectsNames) < 2, 
+									n items(MainEffectsNames) < 1, 
 									n items(TheoreticalConcentrationNames) < 1, 
 									is missing(Criterion["Accuracy"]), 
 									is missing(Criterion["Repeatability"]), 
@@ -771,14 +771,14 @@ MainBody = expr(
 			)
 		);
 		
-		Concentration = parse(word(-1, dtBy[ByInt] << get name,"="));
+		//Concentration = parse(word(-1, dtBy[ByInt] << get name,"="));
 		
-		RowNr = loc(column(dtOutput,1) << get values, Concentration)[1];
+		//RowNr = loc(column(dtOutput,1) << get values, Concentration)[1];
 		for(i=1, i<=n items(POVResults[2]), i++,
-			Column(dtOutput, trim(POVResults[2][i]))[RowNr] = sqrt(POVResults[4][i]);
+			Column(dtOutput, trim(POVResults[2][i]))[ByInt] = sqrt(POVResults[4][i]);
 		);
-		Column(dtOutput, "Repeatability (%)")[RowNr] = sqrt(POVResults[5][2]);
-		Column(dtOutput, "Intermediate Precision (%)")[RowNr] = sqrt(sum(POVResults[5]));
+		Column(dtOutput, "Repeatability (%)")[ByInt] = sqrt(POVResults[5][2]);
+		Column(dtOutput, "Intermediate Precision (%)")[ByInt] = sqrt(sum(POVResults[5]));
 		jrn << Append(Outline Box(dtBy[ByInt] << get name,VB));
 		jrn << append(Page Break Box());
 	);
