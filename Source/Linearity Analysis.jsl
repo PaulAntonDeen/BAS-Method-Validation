@@ -359,7 +359,7 @@ MainBody = expr(
 	VSpacer( 6 );
 	If(Host Is( "Windows" ),
 		jrn << append(String Col Box( "User Information",
-			{"User Name: " || Get Environment Variable( "USERNAME" ), "User Domain: " || Get Environment Variable( "computername" ),
+			{"User Name: " || Get Environment Variable( "USERNAME" ), "Computer Name: " || Get Environment Variable( "computername" ),
 			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
 			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
 		)),
