@@ -1,6 +1,6 @@
 id=com.bas.method_validation
 name=Method Validation
 supportJmpSE=0
-addinVersion=2210131358
+addinVersion=2303221045
 minJmpVersion=15
-maxJmpVersion=16
+maxJmpVersion=17

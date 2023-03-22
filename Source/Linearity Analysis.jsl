@@ -100,12 +100,12 @@ New Window( "Analytical Method Validation",
 								Tolerance = USL - LSL;
 								AMValidation:ksigma = ksigma = ksigmabox << get();
 								Descriptives = Associative Array();
-								Try(Descriptives << insert("Analytical method", AMBox << get text()));
 								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+								Try(Descriptives << insert("Analytical method", AMBox << get text()));
 								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
-								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
-								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
 								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
 								AMValidation:Descriptives = Descriptives;
 								Try(AMValidation:Criterion = NCB << get);
 								Try(Criterion = Associative Array({"Accuracy", "Repeatability", "IP", "Upper Linearity Limit", "Lower Linearity Limit"}, NCB << get));
@@ -139,8 +139,8 @@ New Window( "Analytical Method Validation",
 								Try(TheoreticalConcentrationBox << Set Items(AMValidation:TheoreticalConcentrationNames));
 								try(USLBox << set(AMValidation:USL));
 								try(LSLBox << set(AMValidation:LSL));
+								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
 								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-								Try(AnalystBox << set text(AMValidation:Descriptives["Analyist"]));
 								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
 								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
 								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
@@ -154,18 +154,18 @@ New Window( "Analytical Method Validation",
 				),
 				Panel box("Study descriptives",
 					Lineup Box( N Col( 2 ),
-						Text box("Analytical method"),
-						AMBox = Text edit box("", << set width(1000)),
 						Text box("Analyst"),
 						AnalystBox = Text edit box(""),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
 						Text box("Instrument"),
 						InstrumentBox = Text edit box(""),
-						Text box("Study date(s)"),
-						StudyDataBox = Text edit box(""),
-						Text box("Standard ID"),
-						StandardIDBox = Text edit box(""),
 						Text box("Standard Expiry"),
 						StandardExpiryBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box("")						
 					),
 				)
 			)
