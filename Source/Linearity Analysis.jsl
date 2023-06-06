@@ -213,7 +213,12 @@ ColumnExists = Function({dt,colName},{Default Local},
 );
 
 FileNameFriendlyTimeFormat = Function({timestamp = today()},
-	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+	regex(format(timestamp, "Monddyyyy h:m:s", 22, 0 ),"[-:]",".",GLOBALREPLACE)
+);
+
+Footnote = Function( {Message},
+	{Default Local},
+	Text Box( Message, << Font Color( 19 ), << set Font Style( "Bold" ), << Set Font Size( 12 ), << Set Wrap( 10000 )) << journal;
 );
 
 ReturnCrossingsQuadratic = Function({Formule}, {default local},
@@ -360,8 +365,8 @@ MainBody = expr(
 	If(Host Is( "Windows" ),
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USERNAME" ), "Computer Name: " || Get Environment Variable( "computername" ),
-			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),
-			"Addin version: " || char(Get addin("com.bas.method_validation") << version), Concat( "JMP Version: ", JMP Version() )}
+			"Logon Server: " || Get Environment Variable( "logonserver" ), "User Domain: " || Get Environment Variable( "userdomain" ),try(
+			"Addin version: " || char(Get addin("com.bas.method_validation") << version),"Add-in not installed"), Concat( "JMP Version: ", JMP Version() )}
 		)),
 		jrn << append(String Col Box( "User Information",
 			{"User Name: " || Get Environment Variable( "USER" ),
@@ -434,7 +439,6 @@ MainBody = expr(
 		jrn << append(Text box("K Sigma: " || char(ksigma)))
 	);
 	
-
 	jrn << append(Page Break Box());
 	
 	//Linearity rotation
@@ -557,7 +561,7 @@ MainBody = expr(
 	//Report(biv)[ScaleBox(1)] << Add Ref Line( ULinearityLim, "Solid", red, "ULL" || char(round(ULinearityLim,1)), 1 );
 	
 	ScaleInf = (Max(Crossings) - Min(Crossings))/30;
-	Report(biv)[ScaleBox(1)] << Min( min(Crossings)-ScaleInf) << max(max(Crossings)+ScaleInf) << Label Row( Label Orientation( "Vertical" ) );
+	Report(biv)[ScaleBox(1)] << Min( max(0, min(Crossings)-ScaleInf)) << max(max(Crossings)+ScaleInf) << Label Row( Label Orientation( "Vertical" ) );
 	Report(biv)[ScaleBox(2)] << Min( -2.2) << max(2.2);
 	jrn << append(Report(biv));
 	VSpacer(1);
@@ -598,9 +602,15 @@ MainBody = expr(
 			{"Pass Linearity Criterion" = 76, "Fails Linearity Criterion" = 67}
 		),
 		Color Cell by Value
-	)));	
+	)));
+	:"Pass/Fail Linearity"n <<DeleteFormula;
+	//:Limit << SetDataType("Character");
+	For(i=1, i<=4, i++,
+		If(num(:Limit[i])<0,:Limit[i] = .)
+	);
 	jrn << Append(Outline Box("Linearity Limits", (dtlin << New Data Box()) << Clone Box));
 	biv << close window(1);
+	Footnote("Concentrations below 0 show as '.'");
 	jrn << append(Page Break Box());
 	
 	current data table(dt);
@@ -656,49 +666,17 @@ MainBody = expr(
 	eval(eval expr(OW = dt << Oneway(
 		Y( :"Accuracy/Bias"n ),
 		X( expr(ColonWrapColumns(TheoreticalConcentrationNames[1])) ),
-		invisible
+		invisible,
 		All Graphs( 0 ),
 		Means and Std Dev( 1 ),
-		invisible,
-		SendToReport(
-			Dispatch(
-				{"Means and Std Deviations"},
-				"Mean",
-				NumberColBox,
-				{Set Format( "Fixed Dec", 9, 2 )}
-			),
-			Dispatch(
-				{"Means and Std Deviations"},
-				"Std Dev",
-				NumberColBox,
-				{Visibility( "Collapse" )}
-			),
-			Dispatch(
-				{"Means and Std Deviations"},
-				"Std Err Mean",
-				NumberColBox,
-				{Visibility( "Collapse" )}
-			),
-			Dispatch(
-				{"Means and Std Deviations"},
-				"Lower 95%",
-				NumberColBox,
-				{Set Format( "Fixed Dec", 9, 2 )}
-			),
-			Dispatch(
-				{"Means and Std Deviations"},
-				"Upper 95%",
-				NumberColBox,
-				{Set Format( "Fixed Dec", 9, 2 )}
-			)
-		)
 	)));
 	dtMSD = (Report(OW)[TableBox(1)] << Make into Data Table(invisible));
 	OW << Close window(1);
 	column(dtMSD, 1) << set name(TheoreticalConcentrationNames[1]) << Set Modeling Type("Continuous") << Set Data Type("Numeric");
-	column(dtMSD, 3) << set name("Accuracy/Bias");
-	column(dtMSD, 4) << set name("Bias Lower 95%");
-	column(dtMSD, 5) << set name("Bias Upper 95%");
+	Try(dtMSD<<DeleteColumns({"Std Dev Lower 95%", "Std Dev Upper 95%", "Std Dev", "Std Err Mean"}));
+	column(dtMSD, 3) << set name("Accuracy/Bias") <<Format( "Fixed Dec", 9, 2 );
+	column(dtMSD, 4) << set name("Bias Lower 95%") <<Format( "Fixed Dec", 9, 2 );
+	column(dtMSD, 5) << set name("Bias Upper 95%") <<Format( "Fixed Dec", 9, 2 );
 	eval(eval expr(dtMSD << New Column( "Bias % of Tolerance",
 		Numeric,
 		"Continuous",
@@ -904,7 +882,7 @@ MainBody = expr(
 	Column(dtlin, 1) << set name("Attribute");
 	Column(dtlin, 2) << set name("Reported Value (% of Tolerance)");
 	Column(dtlin, 3) << set name("Pass/Fail");
-	Column(dtlin, 3) << Delete Formula();
+	//Try(Column(dtlin, 3) << Delete Formula());
 	dtlin << new column("Specification Limit");
 	For(i=1, i<=n rows(dtlin), i++,
 		if(column(dtlin, 2)[i]<0, column(dtlin, 2)[i]=0);
@@ -1081,7 +1059,7 @@ MainBody = expr(
 	Text Box( "" ) << journal;
 	
 	Text Box(
-		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", Addin Version: " || char(Get addin("com.bas.method_validation") << version) ,
+		"Report generated on " || Format(TimeOfReport, "Locale Date Time h:m:s") || ", Addin Version: " || Try(char(Get addin("com.bas.method_validation") << version)," No addin installed") ,
 		<<set font size( 14 ),
 		<<font color( {0, 0, 0.5} ),
 		<<set wrap( 1300 )
@@ -1093,7 +1071,7 @@ MainBody = expr(
 	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
-	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.4 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.395 ), portrait( 1 ), paper size( "A4" ) );
 	jrn << Save PDF( DirPath || FileName || ".pdf" );
 	jrn << Save Journal( DirPath || FileName || ".jrn" );
 	//jrn << close window( 1 );
@@ -1139,8 +1117,7 @@ POVFun = Function(
 						Mean Plots( 1 ),
 						Std Dev Plots( 1 ),
 						Variance Components( 0 ),
-						Mean of Std Dev( 1 ),
-
+						Mean of Std Dev( 1 )
 					)
 				),
 			Expr( _Factors_ ), Eval( Factors ),

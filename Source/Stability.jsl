@@ -119,7 +119,7 @@ ColonWrapColumns = Function({ColName},{default local},
 );
 
 FileNameFriendlyTimeFormat = Function({timestamp = today()},
-	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+	regex(format(timestamp, "Monddyyyy h:m:s", 22, 0 ),"[-:]",".",GLOBALREPLACE)
 );
 
 MainBody = expr(

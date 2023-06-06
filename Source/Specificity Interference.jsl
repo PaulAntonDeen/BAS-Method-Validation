@@ -64,7 +64,7 @@ New Window( "Method Validation - Specificity Interference",
 										Text Box("Accuracy (%)"),
 										AccuracyBox = Number edit box(10),
 										SpecBox = Combo box({"Tolerance (USL-LSL)", "Margin", "Mean" }),
-										ValBox = Number edit box(60),
+										ValBox = Number edit box(),
 									)
 								),
 								Panel Box("Externally Studentized Residual Outliers",
@@ -138,7 +138,7 @@ New Window( "Method Validation - Specificity Interference",
 						Text box("Analytical method"),
 						AMBox = Text edit box("", << set width(1000)),
 						Text box("Unit"),
-						UnitBox = Text edit box("%RP", << set width(1000)),
+						UnitBox = Text edit box("", << set width(1000)),
 					),
 				)
 			)
@@ -159,9 +159,16 @@ ColonWrapColumns = Function({ColName},{default local},
 );
 
 FileNameFriendlyTimeFormat = Function({timestamp = today()},
-	regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
+	regex(format(timestamp, "Monddyyyy h:m:s", 22, 0 ),"[-:]",".",GLOBALREPLACE)
+	//regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
 );
-
+New Column( "Column 5",
+	Numeric,
+	"Continuous",
+	Format( "Monddyyyy h:m:s", 22, 0 ),
+	Input Format( "Monddyyyy h:m:s", 0 ),
+	Set Selected
+)
 MainBody = expr(
 	StartWindows = n items(window());
 	//Create a blank journal
@@ -232,9 +239,9 @@ MainBody = expr(
 			ColonWrapColumns(concat(UnSpikedColName, SpikedColNames))
 		),
 		Source Label Column( "Item" ),
-		Stacked Data Column( "RP" )
+		Stacked Data Column( "Measurement" )
 	);
-	dtS << Select Where( Is Missing( :RP ) ) << Delete Rows;
+	dtS << Select Where( Is Missing( :Measurement ) ) << Delete Rows;
 	Column(dts, ConcentrationColName[1]) << set name("Concentration");
 	
 	//Main loop
@@ -247,28 +254,28 @@ MainBody = expr(
 		
 		fm = dtS << Fit Model(
 			Invisible,
-			Y( :RP ),
+			Y( :Measurement ),
 			Effects( :Item, :Concentration, :Item * :Concentration ),
 			Personality( "Standard Least Squares" ),
 			Emphasis( "Effect Leverage" ),
 			Run(
-				Profiler(
-					1,
-					Confidence Intervals( 1 ),
-					Term Value(
-						Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
-						RP( 103.768, Lock( 0 ), Show( 1 ) )
-					)
-				),
-				:Concentration << {Summary of Fit( 1 ),
-				Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
-				Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
-				Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
-				Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
-				Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
-				Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
-				{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
-				Least Squares Means Plot}}}
+			// 	Profiler(
+			// 		1,
+			// 		Confidence Intervals( 1 ),
+			// 		Term Value(
+			// 			Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
+			// 			Measurement( 103.768, Lock( 0 ), Show( 1 ) )
+			// 		)
+			// 	),
+			// 	:Concentration << {Summary of Fit( 1 ),
+			// 	Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
+			// 	Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
+			// 	Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
+			// 	Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+			// 	Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
+			// 	Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
+			// 	{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
+			// 	Least Squares Means Plot}}}
 			)
 		);
 		
@@ -302,28 +309,20 @@ MainBody = expr(
 				fm << close window();
 				fm = dtS << Fit Model(
 					Invisible,
-					Y( :RP ),
+					Y( :Measurement ),
 					Effects( :Item, :Concentration, :Item * :Concentration ),
 					Personality( "Standard Least Squares" ),
 					Emphasis( "Effect Leverage" ),
 					Run(
-						Profiler(
-							1,
-							Confidence Intervals( 1 ),
-							Term Value(
-								Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
-								RP( 103.768, Lock( 0 ), Show( 1 ) )
-							)
-						),
-						:Concentration << {Summary of Fit( 1 ),
-						Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
-						Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
-						Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
-						Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
-						Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
-						Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
-						{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
-						Least Squares Means Plot}}}
+					// 	:Concentration << {Summary of Fit( 1 ),
+					// 	Analysis of Variance( 1 ), Parameter Estimates( 1 ), Lack of Fit( 0 ),
+					// 	Scaled Estimates( 1 ), Plot Actual by Predicted( 1 ),
+					// 	Plot Residual by Predicted( 0 ), Plot Residual by Row( 1 ),
+					// 	Plot Studentized Residuals( 0 ), Plot Effect Leverage( 1 ),
+					// 	Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 ),
+					// 	Show All Confidence Intervals( 1 ), Show VIF( 1 ), {:Item <<
+					// 	{LSMeans Student's t( 0.05, Crosstab Report( 0 ), Connecting Letters Report( 0 ), Ordered Differences Report( 1 ) ),
+					// 	Least Squares Means Plot}}}
 					)
 				);
 			,
@@ -334,6 +333,10 @@ MainBody = expr(
 				)));
 			)
 		);
+		// Header("Data table");
+		// dtS << SelectExcluded << InvertRowSelection;
+		// jrn << append((dt << New Data Box()) << Clone Box);
+		// dtS << ClearSelect;
 	
 		Header("Specificity " || SpikedColNames[i]);
 		Report(fm)["Effect Tests"] << setopen(1) << journal;
@@ -344,20 +347,12 @@ MainBody = expr(
 			fm << close window();
 			fm = dtS << Fit Model(
 				invisible,
-				Y( :RP ),
+				Y( :Measurement ),
 				Effects( :Item, :Concentration ),
 				Personality( "Standard Least Squares" ),
 				Emphasis( "Effect Leverage" ),
 				Run(
-					Profiler(
-						1,
-						Confidence Intervals( 1 ),
-						Term Value(
-							Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
-							Concentration( 100, Lock( 0 ), Show( 1 ) )
-						)
-					),
-					:RP << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
+					:Measurement << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
 					Parameter Estimates( 1 ), Scaled Estimates( 0 ),
 					Plot Actual by Predicted( 1 ), Plot Residual by Predicted( 1 ),
 					Plot Residual by Row( 0 ), Plot Studentized Residuals( 0 ),
@@ -369,17 +364,6 @@ MainBody = expr(
 						Connecting Letters Report( 0 ),
 						Ordered Differences Report( 1 )
 					), Least Squares Means Plot}}}
-				),
-				SendToReport(
-					Dispatch(
-						{"Response RP", "Item", "Least Squares Means Plot"},
-						"Least Squares Means Plot",
-						FrameBox,
-						{DispatchSeg(
-							BarSeg( 1 ),
-							{Line Color( "Red" ), Line Width( 2 ), Error Bar Cap( "Small" )}
-						)}
-					)
 				)
 			);
 			//Write to report
@@ -396,20 +380,12 @@ MainBody = expr(
 			wait(0.1);
 			fm = dtS << Fit Model(
 				Invisible,
-				Y( :RP ),
+				Y( :Measurement ),
 				Effects( :Item, :Concentration, :Item * :Concentration ),
 				Personality( "Standard Least Squares" ),
 				Emphasis( "Effect Leverage" ),
 				Run(
-					Profiler(
-						1,
-						Confidence Intervals( 1 ),
-						Term Value(
-							Item( "Relative Potency % Unspiked", Lock( 0 ), Show( 1 ) ),
-							Concentration( 75, Lock( 0 ), Show( 1 ) )
-						)
-					),
-					:RP << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
+					:Measurement << {Summary of Fit( 1 ), Analysis of Variance( 1 ),
 					Parameter Estimates( 1 ), Lack of Fit( 0 ), Scaled Estimates( 0 ),
 					Plot Actual by Predicted( 1 ), Plot Regression( 0 ),
 					Plot Residual by Predicted( 1 ), Plot Residual by Row( 0 ),
@@ -428,17 +404,6 @@ MainBody = expr(
 						Connecting Letters Report( 0 ),
 						Ordered Differences Report( 1 )
 					), Least Squares Means Plot( Overlay Term List( Item ) )}}}
-				),
-				SendToReport(
-					Dispatch(
-						{"Response RP", "Item", "Least Squares Means Plot"},
-						"Least Squares Means Plot",
-						FrameBox,
-						{DispatchSeg(
-							BarSeg( 1 ),
-							{Line Color( "Red" ), Line Width( 2 ), Error Bar Cap( "Small" )}
-						)}
-					)
 				)
 			);
 			jrn << append(Text box("Significant interaction", <<set wrap( 2000 ), << Set Font Size( 14 )));
