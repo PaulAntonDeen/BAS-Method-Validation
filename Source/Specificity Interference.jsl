@@ -162,13 +162,7 @@ FileNameFriendlyTimeFormat = Function({timestamp = today()},
 	regex(format(timestamp, "Monddyyyy h:m:s", 22, 0 ),"[-:]",".",GLOBALREPLACE)
 	//regex(format(timestamp,"yyyy-mm-ddThh:mm:ss"),"[-:]",".",GLOBALREPLACE)
 );
-New Column( "Column 5",
-	Numeric,
-	"Continuous",
-	Format( "Monddyyyy h:m:s", 22, 0 ),
-	Input Format( "Monddyyyy h:m:s", 0 ),
-	Set Selected
-)
+
 MainBody = expr(
 	StartWindows = n items(window());
 	//Create a blank journal
