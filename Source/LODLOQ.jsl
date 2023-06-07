@@ -223,6 +223,7 @@ MainBody = expr(
 	);
 
 	LODLOQtbl = Report(ow)["Means and Std Deviations"][TableBox(1)] << Make Into Data Table(invisible);
+	Try(LODLOQtbl<<DeleteColumns({"Std Dev Lower 95%", "Std Dev Upper 95%"}));
 	ow << close window();
 	
 	LODLOQtbl << Delete Columns("Std Err Mean");

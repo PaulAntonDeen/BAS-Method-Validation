@@ -117,7 +117,7 @@ New Window( "Method Validation - Specificity ID",
 						Text box("Analytical method"),
 						AMBox = Text edit box("", << set width(1000)),
 						Text box("Unit"),
-						UnitBox = Text edit box("%RP", << set width(1000)),
+						UnitBox = Text edit box("", << set width(1000)),
 					),
 				)
 			)
@@ -259,6 +259,7 @@ MainBody = expr(
 		)
 	);
 	row = Report(ow);
+	
 	jrn << append(row);
 	If(arg(Column(dt, ResultColName[1]) << get format, 1) == "Fixed Dec",
 		resolution = arg(Column(dt, ResultColName[1]) << get format, 3),
