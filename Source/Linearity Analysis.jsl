@@ -444,8 +444,8 @@ MainBody = expr(
 	//Linearity rotation
 	Header("Linearity");
 	biv = dt << Bivariate(
-		Y( ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
-		X(  ColumnWrapColumns(ResponseNames[1]) ),
+		Y( ColumnWrapColumns(ResponseNames[1]) ),
+		X(  ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
 		Fit Line( {Confid Shaded Fit( 1 ), Line Color( {212, 73, 88} )} ),
 		Fit Special( Intercept( 0 ), Slope( 1 ), {Line Color( {61, 174, 70} )} ),
 		invisible,
@@ -458,7 +458,7 @@ MainBody = expr(
 			),
 			Dispatch(
 				{},
-				TheoreticalConcentrationNames[1],
+				ResponseNames[1],
 				ScaleBox,
 				{Min( AxisMin ), Max( AxisMax ), Inc( 20 ), Minor Ticks( 0 )}
 			),
