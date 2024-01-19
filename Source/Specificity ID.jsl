@@ -71,8 +71,18 @@ New Window( "Method Validation - Specificity ID",
 							Button Box( "OK",
 								Try(MValidationSpecificityID:SampleColName = SampleColName = SampleBox << Get Items);
 								Try(MValidationSpecificityID:ResultColName = ResultColName = ResultBox << Get Items);
-								Try(MValidationSpecificityID:AnalyticalMethod = AnalyticalMethod = AMBox << get text());
-								Try(MValidationSpecificityID:Unit = Unit = UnitBox << get text());
+								Descriptives = Associative Array();
+								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+								Try(Descriptives << insert("Analytical method", AMBox << get text()));
+								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+								Try(Descriptives << insert("Purpose", PurposeBox << get text()));
+								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+								Try(Descriptives << insert("Unit", UnitBox << get text()));
+								AMValidation:Descriptives = Descriptives;
+								Try(MValidationSpecificityID:AnalyticalMethod = AnalyticalMethod = AMBox << get text()); //todo
+								Try(MValidationSpecificityID:Unit = Unit = UnitBox << get text()); //todo
 								Try(MValidationSpecificityID:ksigma = ksigma = ksigmabox << get());
 								Try(MValidationSpecificityID:OutlierDetection = OutlierDetection = OutlierBox << Get());
 								//Validate
@@ -104,8 +114,14 @@ New Window( "Method Validation - Specificity ID",
 							Button Box("Recall",
 								Try(SampleBox << Set Items(MValidationSpecificityID:SampleColName));
 								Try(ResultBox << Set Items(MValidationSpecificityID:ResultColName));
-								Try(AMBox << set text(MValidationSpecificityID:AnalyticalMethod));
-								Try(UnitBox << set text(MValidationSpecificityID:Unit));
+								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 								Try(OutlierBox << Set(MValidationSpecificityID:OutlierDetection));
 								Try(ksigmabox << Set(MValidationSpecificityID:ksigma));
 							),
@@ -114,12 +130,32 @@ New Window( "Method Validation - Specificity ID",
 				),
 				Panel box("Study descriptives",
 					Lineup Box( N Col( 2 ),
+						Text box("Analyst"),
+						AnalystBox = Text edit box(""),
 						Text box("Analytical method"),
 						AMBox = Text edit box("", << set width(1000)),
+						Text box("Instrument"),
+						InstrumentBox = Text edit box(""),
+						Text box("Purpose"),
+						PurposeBox = Text edit box(""),
+						Text box("Standard Expiry"),
+						StandardExpiryBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box(""),
 						Text box("Unit"),
 						UnitBox = Text edit box("", << set width(1000)),
 					),
-				)
+				),
+				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 			)
 		)
 	)
@@ -152,7 +188,7 @@ MainBody = expr(
 	//Ttitle page
 	jrn << append(Picture Box( BASLogo ));
 	VSpacer( 4 );
-	jrn<<Append(Text Box("Specificity ID report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	jrn<<Append(Text Box("Specificity ID report " || Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
 	VSpacer( 2 );
 	
 	jrn << append(
@@ -167,10 +203,12 @@ MainBody = expr(
 			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
 		)
 	);
-	VSpacer( 2 );
+	VSpacer( 1 );
+	Header("Data Integrity");
 	jrn << append(
-		Text box(
-			"Analytical Method: " || AnalyticalMethod
+		Table box(
+			String Col Box("Study descriptives", Descriptives << get keys()),
+			String Col Box("Note", Descriptives << get values())
 		)
 	);
 	VSpacer( 6 );
@@ -236,12 +274,14 @@ MainBody = expr(
 		)
 	);
 	
-	Header("Data table");
+	Header(dt << get name() || " - Data table");
 	jrn << append((dt << New Data Box()) << Clone Box);
 	If(OutlierDetection>1,
 		jrn << append(Text box("K Sigma: " || char(ksigma)))
 	);
-	jrn << append(Page Break Box());
+	//jrn << append(Page Break Box());
+	Vspacer(1);
+	Header(dt << get name() || " - Analysis");
 	
 	ow = dt << Oneway(
 		invisible,
@@ -294,7 +334,7 @@ MainBody = expr(
 	//Save journal
 	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
 	jrn << Set Window Title( FileName );
-	jrn << Set Print Footers( "© 2022 BioAssay Sciences, Thomas A. Little Consulting");
+	jrn << Set Print Footers( "© 2021 - " || Char(Year(today()))|| " BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
 	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );

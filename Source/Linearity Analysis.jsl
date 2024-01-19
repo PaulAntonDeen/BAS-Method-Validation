@@ -1,4 +1,7 @@
-﻿Names Default To Here( 1 );
+﻿// Adjust scale /
+// Copyright date 2021 – Current year /
+
+Names Default To Here( 1 );
 If( !Namespace Exists( "AMValidation" ),
 	nsref = New Namespace(
 		"AMValidation"
@@ -103,9 +106,11 @@ New Window( "Analytical Method Validation",
 								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
 								Try(Descriptives << insert("Analytical method", AMBox << get text()));
 								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+								Try(Descriptives << insert("Purpose", PurposeBox << get text()));
 								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
 								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
 								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+								Try(Descriptives << insert("Unit", UnitBox << get text()));
 								AMValidation:Descriptives = Descriptives;
 								Try(AMValidation:Criterion = NCB << get);
 								Try(Criterion = Associative Array({"Accuracy", "Repeatability", "IP", "Upper Linearity Limit", "Lower Linearity Limit"}, NCB << get));
@@ -142,9 +147,11 @@ New Window( "Analytical Method Validation",
 								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
 								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
 								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
 								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
 								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
 								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 								Try(NCB << set(AMValidation:Criterion));
 								Try(OutlierBox << Set(AMValidation:OutlierDetection));
 								Try(ksigmabox << Set(AMValidation:ksigma));
@@ -160,12 +167,16 @@ New Window( "Analytical Method Validation",
 						AMBox = Text edit box("", << set width(1000)),
 						Text box("Instrument"),
 						InstrumentBox = Text edit box(""),
+						Text box("Purpose"),
+						PurposeBox = Text edit box(""),
 						Text box("Standard Expiry"),
 						StandardExpiryBox = Text edit box(""),
 						Text box("Standard ID"),
 						StandardIDBox = Text edit box(""),
 						Text box("Study date(s)"),
-						StudyDataBox = Text edit box("")						
+						StudyDataBox = Text edit box(""),
+						Text box("Unit"),
+						UnitBox = Text edit box("", << set width(1000)),
 					),
 				)
 			)
@@ -227,12 +238,12 @@ ReturnCrossingsQuadratic = Function({Formule}, {default local},
 	A = arg(arg(Formule, 3),1);
 	C2 = arg(Formule, 1)-1.96; //equals 1.96
 
-return(sort list(eval list({
-	(-B+sqrt(B^2-4*A*C1))/(2*A),
-	(-B-sqrt(B^2-4*A*C1))/(2*A),
-	(-B+sqrt(B^2-4*A*C2))/(2*A),
-	(-B-sqrt(B^2-4*A*C2))/(2*A)
-}))[3::4]);
+	return(sort list(eval list({
+		(-B+sqrt(B^2-4*A*C1))/(2*A),
+		(-B-sqrt(B^2-4*A*C1))/(2*A),
+		(-B+sqrt(B^2-4*A*C2))/(2*A),
+		(-B-sqrt(B^2-4*A*C2))/(2*A)
+	}))[3::4]);
 );
 
 CICrossingFinder = Function({Form, CrossList, Theo},{default local},
@@ -319,12 +330,22 @@ MainBody = expr(
 	AxisDecimals = round(log(1000/AxisRange),0);
 		
 	//Titlepage
-	//ReportFonts;
 	jrn << append(Picture Box( BASLogo ));
 	VSpacer( 4 );
-	jrn<<Append(Text Box("Linearity report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	jrn<<Append(Text Box("Linearity report " || Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
 	VSpacer( 1 );
-	jrn<<Append(Text Box(Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Black" ), << Set Font Size( 20 ), << set Font Style( "Bold" )));
+	jrn << append(
+		H List Box(
+			Text Box( "  " ),
+			String Col Box( "Data Files:",
+				{FilePath}
+			),
+			Text Box( "  " ),
+			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
+			Text Box( "  " ),
+			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
 	VSpacer( 1 );
 	Header("Data Integrity");
 	jrn << append(
@@ -349,18 +370,6 @@ MainBody = expr(
 	);
 	VSpacer( 2 );
 	
-	jrn << append(
-		H List Box(
-			Text Box( "  " ),
-			String Col Box( "Data Files:",
-				{FilePath}
-			),
-			Text Box( "  " ),
-			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
-			Text Box( "  " ),
-			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
-		)
-	);
 	VSpacer( 6 );
 	If(Host Is( "Windows" ),
 		jrn << append(String Col Box( "User Information",
@@ -425,7 +434,7 @@ MainBody = expr(
 		)
 	);
 
-	Header("Data table");
+	Header(dt << get name() || " - Data table");
 	//Add bias column and journal table	
 	eval(eval expr(dt << New Column( "Accuracy/Bias",
 		Numeric,
@@ -442,7 +451,7 @@ MainBody = expr(
 	jrn << append(Page Break Box());
 	
 	//Linearity rotation
-	Header("Linearity");
+	Header(dt << get name() || " - Linearity Evaluation");
 	biv = dt << Bivariate(
 		Y( ColumnWrapColumns(ResponseNames[1]) ),
 		X(  ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
@@ -485,10 +494,10 @@ MainBody = expr(
 	
 	column(dt, n cols(dt)) << Set Format( "Fixed Dec", 12, 3 );
 	
-	jrn << append(Page Break Box());
+	//jrn << append(Page Break Box());
 	
 	//Range of linearity
-	Header("Range of Linearity");
+	Header(dt << get name() || " - Range of Linearity");
 	biv = dt << Bivariate(
 		Y( column(dt, n cols(dt)) ),
 		X( ColumnWrapColumns(TheoreticalConcentrationNames[1]) ),
@@ -565,57 +574,88 @@ MainBody = expr(
 	Report(biv)[ScaleBox(2)] << Min( -2.2) << max(2.2);
 	jrn << append(Report(biv));
 	VSpacer(1);
-	dtlin = (Table Box(
-		String Col Box( "Curve and 95% CI Limits", {"Lower Curve", "Upper Curve", "Lower 95% CL", "Upper 95% CL"} ),
-		tb = Number Col Box( "Limit", Crossings, << Set Format( "Fixed Dec", 12, AxisDecimals ) )
-	) << make into data table());
-	eval(eval expr(dtlin << New Column( "Pass/Fail Linearity",
-		Character,
-		"Nominal",
-		Formula(
-			Match( :"Curve and 95% CI Limits"n,
-				"Lower 95% CL",
-					If( :Limit < expr(LLinearityLim),
-						"Pass Linearity Criterion",
-						"Fails Linearity Criterion"
-					),
-				"Lower Curve",
-					If( :Limit < expr(LLinearityLim),
-						"Pass Linearity Criterion",
-						"Fails Linearity Criterion"
-					),
-				"Upper 95% CL",
-					If( :Limit > expr(ULinearityLim),
-						"Pass Linearity Criterion",
-						"Fails Linearity Criterion"
-					),
-				"Upper Curve",
-					If( :Limit > expr(ULinearityLim),
-						"Pass Linearity Criterion",
-						"Fails Linearity Criterion"
-					),
-				Empty(),
-			)
+	dtlin = New Table( "Range of Linearity",
+		Add Rows( 2 ),
+		New Column( "Curve",
+			Character,
+			"Nominal",
+			Set Values( {"Quadratic", "95% Confidence Interval"} )
 		),
-		Set Property(
-			"Value Colors",
-			{"Pass Linearity Criterion" = 76, "Fails Linearity Criterion" = 67}
+		New Column( "Lower Acceptance Limit",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 1 ),
+			Set Values( J(2, 1, LLinearityLim) )
 		),
-		Color Cell by Value
-	)));
-	:"Pass/Fail Linearity"n <<DeleteFormula;
-	//:Limit << SetDataType("Character");
-	For(i=1, i<=4, i++,
-		If(num(:Limit[i])<0,:Limit[i] = .)
+		New Column( "Lower Spec Limit",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Values( J(2, 1, LSL) )
+		),
+		New Column( "Lower Concentration",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 1 ),
+			Set Values( {QuadCross[1], ActuallLowerCICross} )
+		),
+		New Column( "Upper Concentration",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 1 ),
+			Set Values( {QuadCross[2], ActuallUpperCICross} )
+		),
+		New Column( "Upper Spec Limit",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Values( J(2, 1, USL) )
+		),
+		New Column( "Upper Acceptance Limit",
+			Numeric,
+			"Continuous",
+			Format( "Fixed Dec", 12, 1 ),
+			Set Values( J(2, 1, ULinearityLim) )
+		),
+		New Column( "Results",
+			Character,
+			"Nominal",
+			Formula(
+				If(
+					:Lower Concentration > :Lower Spec Limit | :Upper Concentration < :Upper Spec Limit,
+						"Linear range is within spec limits, adjust concentration and remeasure",
+					:Lower Acceptance Limit >= :Lower Concentration & :Upper Acceptance Limit <= :Upper Concentration,
+						"Pass Linearity Criterion",
+					"Linear range exceeds spec limits but within linearity limits"
+				)
+			),
+			Set Property(
+				"Value Colors",
+				{"Linear range exceeds spec limits but within linearity limits" = 69,
+				"Pass Linearity Criterion" = 76,
+				"Linear range is within spec limits, adjust concentration and remeasure"
+				= 67}
+			),
+			Color Cell by Value,
+			Set Display Width( 390 )
+		)
+	);
+	wait(1);
+	dtlin:"Results"n <<DeleteFormula;
+	
+	For(i=1, i<=2, i++,
+		If(num(:Lower Concentration[i])<0,:Lower Concentration[i] = 0);
+		If(num(:Upper Concentration[i])<0,:Upper Concentration[i] = 0);
 	);
 	jrn << Append(Outline Box("Linearity Limits", (dtlin << New Data Box()) << Clone Box));
 	biv << close window(1);
-	Footnote("Concentrations below 0 show as '.'");
+	Text Box("If concentration is calculated as below 0, report shows 0.") << Journal;
+	Text Box("LSL = " || char(LSL) || ", USL = " || Char(USL) || ", Lower Linearity Limit = " || Char(Criterion["Lower Linearity Limit"]) || ", Upper Linearity Limit = " || Char(Criterion["Upper Linearity Limit"]) || ", Lower Acceptance Limit = " || Char(LLinearityLim) || ", Upper Acceptance Limit = " || Char(ULinearityLim), << Set Wrap(1000)) << Journal;
 	jrn << append(Page Break Box());
 	
 	current data table(dt);
 	//Bias by concentration
-	Header("Bias/Accuracy");
+	Header(dt << get name() || " - Bias/Accuracy");
 	eval(eval expr(GB = dt << Graph Builder(
 		Size( 800, 450 ),
 		Show Control Panel( 0 ),
@@ -671,6 +711,7 @@ MainBody = expr(
 		Means and Std Dev( 1 ),
 	)));
 	dtMSD = (Report(OW)[TableBox(1)] << Make into Data Table(invisible));
+	dtMSD << SetName("Bias Accuracy");
 	OW << Close window(1);
 	column(dtMSD, 1) << set name(TheoreticalConcentrationNames[1]) << Set Modeling Type("Continuous") << Set Data Type("Numeric");
 	Try(dtMSD<<DeleteColumns({"Std Dev Lower 95%", "Std Dev Upper 95%", "Std Dev", "Std Err Mean"}));
@@ -691,6 +732,7 @@ MainBody = expr(
 		Color Cell by Value
 	)));
 	jrn << append((dtMSD << New Data Box()) << Clone Box);
+	Text Box("Bias Acceptance Criterion: " || Char(Criterion["Accuracy"])) << Journal;
 	jrn << append(Page Break Box());
 	
 	Header("Partition of Variation, Intermediate Precision");
@@ -865,195 +907,130 @@ MainBody = expr(
 
 	//Table to journal
 	dtOutput << delete rows(dtOutput << Get excluded Rows);
-	Header("Repeatability and Intermediate Precision");
-	/*HideColumns(dtOutput, Index(n items(MainEffectsNames) + 5, n cols(dtOutput), 1));
-	jrn << append((dtOutput<< New Data Box()) << Clone Box);
-	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));*/
+	Header(dt << get name() || " - Repeatability and Intermediate Precision");
 	HideColumns(dtOutput, {4, 7, 8, 10, 12, 15, 16}+n items(MainEffectsNames));
 	jrn << append((dtOutput<< New Data Box()) << Clone Box);
 	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));
 	HideColumns(dtOutput, {3, 5, 6, 9, 11, 13, 14}+n items(MainEffectsNames));
 	jrn << append((dtOutput<< New Data Box()) << Clone Box);
 	UnHideColumns(dtOutput, Index(1, n cols(dtOutput), 1));
-	jrn << append(Page Break Box());
-	
-	//Linearity Report Summary Table
-	Header("Linearity Report Summary Table");
-	Column(dtlin, 1) << set name("Attribute");
-	Column(dtlin, 2) << set name("Reported Value (% of Tolerance)");
-	Column(dtlin, 3) << set name("Pass/Fail");
-	//Try(Column(dtlin, 3) << Delete Formula());
-	dtlin << new column("Specification Limit");
-	For(i=1, i<=n rows(dtlin), i++,
-		if(column(dtlin, 2)[i]<0, column(dtlin, 2)[i]=0);
-		if(column(dtlin, 3)[i]=="Pass Linearity Criterion", column(dtlin, 3)[i]="Pass",column(dtlin, 3)[i]="Fail")
-	);
-	Column(dtlin, 3) << Set Property(
-		"Value Colors",
-		{"Pass" = 76, "Fail" = 67}
-	);
-	Column(dtlin, "Specification Limit")[1] = LLinearityLim;
-	Column(dtlin, "Specification Limit")[2] = ULinearityLim;
-	Column(dtlin, "Specification Limit")[3] = LLinearityLim;
-	Column(dtlin, "Specification Limit")[4] = ULinearityLim;
+	Text Box("Repeatability acceptance criterion: " || Char(Criterion["Repeatability"])) << Journal;
+	//jrn << append(Page Break Box());
+	VSpacer(2);
+
+	Header("Report Summary");
+	HideColumns(dtLin, {2,3,6,7});
+	jrn << append(OutlineBox("Range of linearity",(dtLin<< New Data Box()) << Clone Box));
+	HideColumns(dtMSD, {2,3,4,5});
+	jrn << append(OutlineBox("Bias/Accuracy", (dtMSD<< New Data Box()) << Clone Box));
+	HideColumns(dtOutput, 2::8+n items(MainEffectsNames));
+	jrn << append(OutlineBox("Repeatability and Intermediate Precision", (dtOutput<< New Data Box()) << Clone Box));
+
+	//Find biggest range
 	Concentrations = column(dtOutput, 1) << get values();
-	Values = Column(dtMSD, "Bias % of Tolerance")  << get values;
-	pf = Column(dtMSD, "Accuracy Evaluation") << get values;
- 	for(i=1, i<= n items(Concentrations), i++,
-		dtlin << add rows(1);
-		Column(dtlin, 1)[n rows(dtlin)] = "Accuracy/Bias " || char(Concentrations[i]);
-		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
-		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
-		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Accuracy"];
-	);
-	Close(dtMSD, no save);
-	BiasRange = FindBiggestRange(Concentrations, pf);
-	
-	Values = Column(dtOutput, "Repeatability % of Tolerance (n=1)") << get values;
-	pf = Column(dtOutput, "Repeatability Pass/Fail (n=1)") << get values;
-	for(i=1, i<= n items(Concentrations), i++,
-		dtlin << add rows(1);
-		Column(dtlin, 1)[n rows(dtlin)] = "Repeatability (n=1) " || char(Concentrations[i]);
-		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
-		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
-		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Repeatability"];
-	);
-	Repn1Range = FindBiggestRange(Concentrations, pf);
-	
-	Values = Column(dtOutput, "Repeatability % of Tolerance (n=3)") << get values;
-	pf = Column(dtOutput, "Repeatability Pass/Fail (n=3)") << get values;
-	for(i=1, i<= n items(Concentrations), i++,
-		dtlin << add rows(1);
-		Column(dtlin, 1)[n rows(dtlin)] = "Repeatability (n=3) " || char(Concentrations[i]);
-		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
-		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
-		Column(dtlin, 4)[n rows(dtlin)] = Criterion["Repeatability"];
-	);
-	Repn3Range = FindBiggestRange(Concentrations, pf);
-	
-	Values = Column(dtOutput, "IP % of Tolerance (n=1)") << get values;
-	pf = Column(dtOutput, "Intermediate Precision Pass/Fail (n=1)") << get values;
-	for(i=1, i<= n items(Concentrations), i++,
-		dtlin << add rows(1);
-		Column(dtlin, 1)[n rows(dtlin)] = "Intermediate Precision (n=1) " || char(Concentrations[i]);
-		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
-		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
-		Column(dtlin, 4)[n rows(dtlin)] = Criterion["IP"];
-	);
-	IPn1Range = FindBiggestRange(Concentrations, pf);
-	
-	Values = Column(dtOutput, "IP % of Tolerance (n=3)") << get values;
-	pf = Column(dtOutput, "Intermediate Precision Pass/Fail (n=3)") << get values;
-	for(i=1, i<= n items(Concentrations), i++,
-		dtlin << add rows(1);
-		Column(dtlin, 1)[n rows(dtlin)] = "Intermediate Precision (n=3) " || char(Concentrations[i]);
-		Column(dtlin, 2)[n rows(dtlin)] = Values[i];
-		Column(dtlin, 3)[n rows(dtlin)] = pf[i];
-		Column(dtlin, 4)[n rows(dtlin)] = Criterion["IP"];
-	);
-	IPn3Range = FindBiggestRange(Concentrations, pf);
-	
+ 	BiasRange = FindBiggestRange(Concentrations, dtMSD:Accuracy Evaluation << GetValues);
+	Repn1Range = FindBiggestRange(Concentrations, dtOutput:"Repeatability Pass/Fail (n=1)"n << get values);
+	Repn3Range = FindBiggestRange(Concentrations, dtOutput:"Repeatability Pass/Fail (n=3)"n << get values);
+	IPn1Range = FindBiggestRange(Concentrations, dtOutput:"Intermediate Precision Pass/Fail (n=1)"n << get values);
+	IPn3Range = FindBiggestRange(Concentrations, dtOutput:"Intermediate Precision Pass/Fail (n=3)"n << get values);
+
 	Close(dtOutput, no save);
-	dtlin << New Column( "Reported Range", Character, "Nominal");
-	dtlin << add rows(1);
-	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range Curve (n=1)";
-	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
-		Range = eval list(
-			{
-				Max(
-					Column(dtlin, "Reported Value (% of Tolerance)")[1],
-					min(BiasRange),
-					min(Repn1Range),
-					min(IPn1Range)
-				),
-				min(
-					Column(dtlin, "Reported Value (% of Tolerance)")[2],
-					max(BiasRange),
-					max(Repn1Range),
-					max(IPn1Range)
-				)
-			}
-		);
-		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
-	,
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
-	);
-	dtlin << add rows(1);
-	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range Curve (n=3)";
-	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
-		Range = eval list(
-			{
-				Max(
-					Column(dtlin, "Reported Value (% of Tolerance)")[1],
-					min(BiasRange),
-					min(Repn3Range),
-					min(IPn3Range)
-				),
-				min(
-					Column(dtlin, "Reported Value (% of Tolerance)")[2],
-					max(BiasRange),
-					max(Repn3Range),
-					max(IPn3Range)
-				)
-			}
-		);
-		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
-	,
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
-	);
-	dtlin << add rows(1);
-	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range CI (n=1)";
-	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
-		Range = eval list(
-			{
-				Max(
-					Column(dtlin, "Reported Value (% of Tolerance)")[3],
-					min(BiasRange),
-					min(Repn1Range),
-					min(IPn1Range)
-				),
-				min(
-					Column(dtlin, "Reported Value (% of Tolerance)")[4],
-					max(BiasRange),
-					max(Repn1Range),
-					max(IPn1Range)
-				)
-			}
-		);
-		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
-	,
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
-	);
-	dtlin << add rows(1);
-	Column(dtlin, 1)[n rows(dtlin)] = "Assay Range CI (n=3)";
-	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
-		Range = eval list(
-			{
-				Max(
-					Column(dtlin, "Reported Value (% of Tolerance)")[3],
-					min(BiasRange),
-					min(Repn3Range),
-					min(IPn3Range)
-				),
-				min(
-					Column(dtlin, "Reported Value (% of Tolerance)")[4],
-					max(BiasRange),
-					max(Repn3Range),
-					max(IPn3Range)
-				)
-			}
-		);
-		Column(dtlin, "Reported Range")[n rows(dtlin)] = char(Range[1]) || " - " || char(Range[2]);
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Pass";
-	,
-		Column(dtlin, "Pass/Fail")[n rows(dtlin)] = "Fail";
-	);
-	dtlin << Move Selected Columns({:Specification Limit}, after( :"Reported Value (% of Tolerance)"n ));
-	jrn << append((dtlin<< New Data Box()) << Clone Box);
 	Close(dtlin, no save);
+	Close(dtMSD, no save);
+	dtAssayRange = NewTable("Validated Assay Range",
+		AddRows(4),
+		New Column( "Curve",
+			Character,
+			"Nominal",
+			Set Values( {"Quadratic", "Quadratic", "95% Confidence Interval", "95% Confidence Interval"} )
+		),
+		New Column( "Sample Size (n)",
+			Character,
+			"Nominal",
+			Set Values( {"1", "3", "1", "3"} )
+		),
+		New Column( "Reported Range", Character, "Nominal")
+	);
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
+		Range = eval list(
+			{
+				Max(
+					QuadCross[1],
+					min(BiasRange),
+					min(Repn1Range),
+					min(IPn1Range)
+				),
+				min(
+					QuadCross[2],
+					max(BiasRange),
+					max(Repn1Range),
+					max(IPn1Range)
+				)
+			}
+		);
+		Column(dtAssayRange, "Reported Range")[1] = char(Range[1]) || " - " || char(Range[2]);
+	);
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
+		Range = eval list(
+			{
+				Max(
+					QuadCross[1],
+					min(BiasRange),
+					min(Repn3Range),
+					min(IPn3Range)
+				),
+				min(
+					QuadCross[2],
+					max(BiasRange),
+					max(Repn3Range),
+					max(IPn3Range)
+				)
+			}
+		);
+		Column(dtAssayRange, "Reported Range")[2] = char(Range[1]) || " - " || char(Range[2]);
+	);
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn1Range)), !is missing(min(IPn1Range))),
+		Range = eval list(
+			{
+				Max(
+					ActuallLowerCICross,
+					min(BiasRange),
+					min(Repn1Range),
+					min(IPn1Range)
+				),
+				min(
+					ActuallUpperCICross,
+					max(BiasRange),
+					max(Repn1Range),
+					max(IPn1Range)
+				)
+			}
+		);
+		Column(dtAssayRange, "Reported Range")[3] = char(Range[1]) || " - " || char(Range[2]);
+	);
+	If(and(!is missing(min(BiasRange)),	!is missing(min(Repn3Range)), !is missing(min(IPn3Range))),
+		Range = eval list(
+			{
+				Max(
+					ActuallLowerCICross,
+					min(BiasRange),
+					min(Repn3Range),
+					min(IPn3Range)
+				),
+				min(
+					ActuallUpperCICross,
+					max(BiasRange),
+					max(Repn3Range),
+					max(IPn3Range)
+				)
+			}
+		);
+		Column(dtAssayRange, "Reported Range")[4] = char(Range[1]) || " - " || char(Range[2]);
+	);
+	VSpacer(2);
+	Header("Assay Range");
+	jrn << append((dtAssayRange<< New Data Box()) << Clone Box);
+	Close(dtAssayRange, no save);
 	
 	//Close journal with date
 	Text Box( "" ) << journal;
@@ -1068,10 +1045,10 @@ MainBody = expr(
 	//Save journal
 	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
 	jrn << Set Window Title( FileName );
-	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+	jrn << Set Print Footers( "© 2021 - " || Char(Year(today()))|| " BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
-	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.395 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );
 	jrn << Save PDF( DirPath || FileName || ".pdf" );
 	jrn << Save Journal( DirPath || FileName || ".jrn" );
 	//jrn << close window( 1 );

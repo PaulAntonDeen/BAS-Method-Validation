@@ -88,8 +88,16 @@ New Window( "Method Validation - Specificity Interference",
 								Try(MValidationSpecificity:SpecType = SpecBox << get);
 								Try(SpecType = SpecBox << get selected);
 								Try(MValidationSpecificity:Tolerance = Tolerance = ValBox << Get);
-								Try(MValidationSpecificity:AnalyticalMethod = AnalyticalMethod = AMBox << get text());
-								Try(MValidationSpecificity:Unit = Unit = UnitBox << get text());
+								Descriptives = Associative Array();
+								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+								Try(Descriptives << insert("Analytical method", AMBox << get text()));
+								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+								Try(Descriptives << insert("Purpose", PurposeBox << get text()));
+								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+								Try(Descriptives << insert("Unit", UnitBox << get text()));
+								AMValidation:Descriptives = Descriptives;
 								Try(MValidationSpecificity:ksigma = ksigma = ksigmabox << get());
 								Try(MValidationSpecificity:OutlierDetection = OutlierDetection = OutlierBox << Get());
 								//Validate
@@ -117,8 +125,14 @@ New Window( "Method Validation - Specificity Interference",
 								Try(UnSpikedBox << Set Items(MValidationSpecificity:UnSpikedColName));
 								Try(AccuracyBox << Set(MValidationSpecificity:Accuracy));
 								Try(ValBox << Set(MValidationSpecificity:Tolerance));
-								Try(AMBox << set text(MValidationSpecificity:AnalyticalMethod));
-								Try(UnitBox << set text(MValidationSpecificity:Unit));
+								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 								Try(SpecBox << set(MValidationSpecificity:SpecType));
 								Try(OutlierBox << Set(MValidationSpecificity:OutlierDetection));
 								Try(ksigmabox << Set(MValidationSpecificity:ksigma));
@@ -135,12 +149,32 @@ New Window( "Method Validation - Specificity Interference",
 				),
 				Panel box("Study descriptives",
 					Lineup Box( N Col( 2 ),
+						Text box("Analyst"),
+						AnalystBox = Text edit box(""),
 						Text box("Analytical method"),
 						AMBox = Text edit box("", << set width(1000)),
+						Text box("Instrument"),
+						InstrumentBox = Text edit box(""),
+						Text box("Purpose"),
+						PurposeBox = Text edit box(""),
+						Text box("Standard Expiry"),
+						StandardExpiryBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box(""),
 						Text box("Unit"),
 						UnitBox = Text edit box("", << set width(1000)),
 					),
-				)
+				),
+				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 			)
 		)
 	)
@@ -173,7 +207,7 @@ MainBody = expr(
 	//Ttitle page
 	jrn << append(Picture Box( BASLogo ));
 	VSpacer( 4 );
-	jrn<<Append(Text Box("Specificity Interference report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	jrn<<Append(Text Box("Specificity Interference report " || Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
 	VSpacer( 2 );
 	
 	jrn << append(
@@ -188,17 +222,19 @@ MainBody = expr(
 			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
 		)
 	);
+	VSpacer( 1 );
+	Header("Data Integrity");
+	jrn << append(
+		Table box(
+			String Col Box("Study descriptives", Descriptives << get keys()),
+			String Col Box("Note", Descriptives << get values())
+		)
+	);
 	VSpacer( 2 );
 	jrn << append(
 		Table box(
 			String Col Box("Specification", {"Accuracy (%)", SpecType}),
 			NCB = Number Col Box("Value", {Accuracy, Tolerance})
-		)
-	);
-	VSpacer( 2 );
-	jrn << append(
-		Text box(
-			"Analytical Method: " || AnalyticalMethod
 		)
 	);
 	VSpacer( 6 );
@@ -222,7 +258,7 @@ MainBody = expr(
 	VSpacer( 1 );
 	jrn << append(Page Break Box());
 	
-	Header("Data table");
+	Header(dt << get name() || " - Data table");
 	jrn << append((dt << New Data Box()) << Clone Box);
 
 	jrn << append(Page Break Box());
@@ -332,7 +368,7 @@ MainBody = expr(
 		// jrn << append((dt << New Data Box()) << Clone Box);
 		// dtS << ClearSelect;
 	
-		Header("Specificity " || SpikedColNames[i]);
+		Header(dt << get name() || " - Specificity " || SpikedColNames[i]);
 		Report(fm)["Effect Tests"] << setopen(1) << journal;
 		VSpacer(1);
 		If((Report(fm)[OutlineBox("Effect Tests")][1][NumberColbox("Prob > F")] << get)[3]>0.05,
@@ -432,7 +468,7 @@ MainBody = expr(
 				)
 			)
 		);
-		Column(sumdt, "Difference") << set name("Difference (" || Unit || ")");
+		Column(sumdt, "Difference") << set name("Difference (" || Descriptives["Unit"] || ")");
 		Eval(
 			Eval Expr(
 				sumdt << New Column( "Result",
@@ -452,7 +488,7 @@ MainBody = expr(
 	);
 	If(OutlierDetection>1,
 		jrn << append(Page Break Box());
-		Header("Data table with outlier test result");
+		Header(dt << get name() || " - Data table with outlier test result");
 		jrn << append((dtS << New Data Box()) << Clone Box);
 		If(OutlierDetection>1,
 			jrn << append(Text box("K Sigma: " || char(ksigma)))
@@ -473,7 +509,7 @@ MainBody = expr(
 	//Save journal
 	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
 	jrn << Set Window Title( FileName );
-	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+	jrn << Set Print Footers( "© 2021 - " || Char(Year(today()))|| " BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
 	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );

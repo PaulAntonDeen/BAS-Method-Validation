@@ -80,6 +80,16 @@ New Window( "Analytical Method Validation",
 										Try(AMValidation:NrOfRuns = NrOfRuns = NrOfRunsBox << Get);
 										AMValidation:OutlierDetection = OutlierDetection = OutlierBox << Get();
 										AMValidation:ksigma = ksigma = ksigmabox << get();
+										Descriptives = Associative Array();
+										Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+										Try(Descriptives << insert("Analytical method", AMBox << get text()));
+										Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+										Try(Descriptives << insert("Purpose", PurposeBox << get text()));
+										Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+										Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+										Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+										Try(Descriptives << insert("Unit", UnitBox << get text()));
+										AMValidation:Descriptives = Descriptives;
 										Current window() << close window();
 										MainBody;
 									),
@@ -93,12 +103,48 @@ New Window( "Analytical Method Validation",
 										Try(NrOfRunsBox << Set(AMValidation:NrOfRuns));
 										Try(OutlierBox << Set(AMValidation:OutlierDetection));
 										Try(ksigmabox << Set(AMValidation:ksigma));
+										Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+										Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+										Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+										Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+										Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+										Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+										Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+										Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 									)
 								)
 							)
 						)
 					)
-				)
+				),
+				Panel box("Study descriptives",
+					Lineup Box( N Col( 2 ),
+						Text box("Analyst"),
+						AnalystBox = Text edit box(""),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
+						Text box("Instrument"),
+						InstrumentBox = Text edit box(""),
+						Text box("Purpose"),
+						PurposeBox = Text edit box(""),
+						Text box("Standard Expiry"),
+						StandardExpiryBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box(""),
+						Text box("Unit"),
+						UnitBox = Text edit box("", << set width(1000)),
+					)
+				),
+				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 			)
 		)
 	)
@@ -132,7 +178,7 @@ MainBody = expr(
 	//Titlepage
 	jrn << append(Picture Box( BASLogo ));
 	VSpacer( 4 );
-	jrn<<Append(Text Box("Limit of Detection / Limit of Quantitation report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	jrn<<Append(Text Box("Limit of Detection / Limit of Quantitation report " || Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
 	VSpacer( 1 );
 
 	jrn << append(
@@ -145,6 +191,14 @@ MainBody = expr(
 			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
 			Text Box( "  " ),
 			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 1 );
+	Header("Data Integrity");
+	jrn << append(
+		Table box(
+			String Col Box("Study descriptives", Descriptives << get keys()),
+			String Col Box("Note", Descriptives << get values())
 		)
 	);
 	VSpacer( 6 );
@@ -168,7 +222,7 @@ MainBody = expr(
 	VSpacer( 1 );
 	jrn << append(Page Break Box());
 
-	Header("LOD and LOQ");
+	Header(dt << get name() || " - LOD and LOQ");
 	//Outlier detection
 	If(OutlierDetection>1,
 		//Do multivariate by dose
@@ -300,7 +354,7 @@ MainBody = expr(
 	);
 	Close(LODLOQtbl, no save);
 	
-	Header("Data table LOD & LOQ");
+	Header(dt << get name() || " - Data table LOD & LOQ");
 	jrn << append((dt << New Data Box()) << Clone Box);
 	If(OutlierDetection>1,
 		jrn << append(Text box("K Sigma: " || char(ksigma)))
@@ -319,7 +373,7 @@ MainBody = expr(
 	//Save journal
 	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
 	jrn << Set Window Title( FileName );
-	jrn << Set Print Footers( "© 2021 BioAssay Sciences, Thomas A. Little Consulting");
+	jrn << Set Print Footers( "© 2021 - " || Char(Year(today()))|| " BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
 	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );

@@ -75,6 +75,16 @@ New Window( "Analytical Method Validation",
 								Try(MVStability:TimeName = TimeName = TimeBox << Get Items);
 								MVStability:ksigma = ksigma = ksigmabox << get();
 								MVStability:OutlierDetection = OutlierDetection = OutlierBox << Get();
+								Descriptives = Associative Array();
+								Try(Descriptives << insert("Analyst", AnalystBox << get text()));
+								Try(Descriptives << insert("Analytical method", AMBox << get text()));
+								Try(Descriptives << insert("Instrument", InstrumentBox << get text()));
+								Try(Descriptives << insert("Purpose", PurposeBox << get text()));
+								Try(Descriptives << insert("Standard Expiry", StandardExpiryBox << get text()));
+								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
+								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
+								Try(Descriptives << insert("Unit", UnitBox << get text()));
+								AMValidation:Descriptives = Descriptives;
 								//Validate
 								If(
 									or(
@@ -97,10 +107,46 @@ New Window( "Analytical Method Validation",
 								Try(DescriptivesBox << Set Items(MVStability:DescriptivesNames));
 								Try(OutlierBox << Set(MVStability:OutlierDetection));
 								Try(ksigmabox << Set(MVStability:ksigma));
+								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 							),
 						)
 					),
-				)
+				),
+				Panel box("Study descriptives",
+					Lineup Box( N Col( 2 ),
+						Text box("Analyst"),
+						AnalystBox = Text edit box(""),
+						Text box("Analytical method"),
+						AMBox = Text edit box("", << set width(1000)),
+						Text box("Instrument"),
+						InstrumentBox = Text edit box(""),
+						Text box("Purpose"),
+						PurposeBox = Text edit box(""),
+						Text box("Standard Expiry"),
+						StandardExpiryBox = Text edit box(""),
+						Text box("Standard ID"),
+						StandardIDBox = Text edit box(""),
+						Text box("Study date(s)"),
+						StudyDataBox = Text edit box(""),
+						Text box("Unit"),
+						UnitBox = Text edit box("", << set width(1000)),
+					)
+				),
+				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
+				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
 			)
 		)
 	)
@@ -132,7 +178,7 @@ MainBody = expr(
 	//ReportFonts;
 	jrn << append(Picture Box( BASLogo ));
 	VSpacer( 4 );
-	jrn<<Append(Text Box("Stability Indicating Report", <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
+	jrn<<Append(Text Box("Stability Indicating Report " || Descriptives["Analytical method"], <<set wrap( 2000 ), << Font Color( "Red" ), << Set Font Size( 24 ), << set Font Style( "Bold" )));
 	VSpacer( 1 );
 	
 	jrn << append(
@@ -145,6 +191,14 @@ MainBody = expr(
 			String Col Box( "Date: ", {Long Date( TimeOfReport )} ),
 			Text Box( "  " ),
 			String Col Box( "Time: ", {Format( TimeOfReport, "h:m:s" )} )
+		)
+	);
+	VSpacer( 1 );
+	Header("Data Integrity");
+	jrn << append(
+		Table box(
+			String Col Box("Study descriptives", Descriptives << get keys()),
+			String Col Box("Note", Descriptives << get values())
 		)
 	);
 	VSpacer( 6 );
@@ -293,17 +347,17 @@ MainBody = expr(
 		);
 	);
 	
-	Header("Data table");
+	Header(dt << get name() || " - Data table");
 	jrn << append((dt << New Data Box()) << Clone Box);
 	If(OutlierDetection>1,
 		jrn << append(Text box("K Sigma: " || char(ksigma)))
 	);
 	
-	Header("Model comparisson (all data)");
+	Header(dt << get name() || " - Model comparisson (all data)");
 	jrn << append((ModTbl << New Data Box()) << Clone Box);
 	Close(ModTbl, No save);
 	
-	Header("Best fitting model");
+	Header(dt << get name() || " - Best fitting model");
 	Match(BestModel,
 		"Linear",
 		FC = dt << Fit Curve(
@@ -363,10 +417,10 @@ MainBody = expr(
 	
 	FileName = dt << get name() || " " || FileNameFriendlyTimeFormat(TimeOfReport);
 	jrn << Set Window Title( FileName );
-	jrn << Set Print Footers( "© 2022 BioAssay Sciences, Thomas A. Little Consulting");
+	jrn << Set Print Footers( "© 2021 - " || Char(Year(today()))|| " BioAssay Sciences, Thomas A. Little Consulting");
 
 	//Define setup information to save in pdf
-	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.6 ), portrait( 1 ), paper size( "A4" ) );
+	jrn << Set page setup( margins( 0.5, 0.5, 0.5, 0.5 ), scale( 0.5 ), portrait( 1 ), paper size( "A4" ) );
 	jrn << Save PDF( DirPath || FileName || ".pdf" );
 	jrn << Save Journal( DirPath || FileName || ".jrn" );
 	//jrn << close window( 1 );
