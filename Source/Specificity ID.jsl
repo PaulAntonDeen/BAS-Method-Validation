@@ -80,7 +80,7 @@ New Window( "Method Validation - Specificity ID",
 								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
 								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
 								Try(Descriptives << insert("Unit", UnitBox << get text()));
-								AMValidation:Descriptives = Descriptives;
+								MValidationSpecificityID:Descriptives = Descriptives;
 								Try(MValidationSpecificityID:AnalyticalMethod = AnalyticalMethod = AMBox << get text()); //todo
 								Try(MValidationSpecificityID:Unit = Unit = UnitBox << get text()); //todo
 								Try(MValidationSpecificityID:ksigma = ksigma = ksigmabox << get());
@@ -114,14 +114,14 @@ New Window( "Method Validation - Specificity ID",
 							Button Box("Recall",
 								Try(SampleBox << Set Items(MValidationSpecificityID:SampleColName));
 								Try(ResultBox << Set Items(MValidationSpecificityID:ResultColName));
-								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+								Try(AnalystBox << set text(MValidationSpecificityID:Descriptives["Analyst"]));
+								Try(AMBox << set text(MValidationSpecificityID:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(MValidationSpecificityID:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(MValidationSpecificityID:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(MValidationSpecificityID:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(MValidationSpecificityID:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(MValidationSpecificityID:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(MValidationSpecificityID:Descriptives["Unit"]));
 								Try(OutlierBox << Set(MValidationSpecificityID:OutlierDetection));
 								Try(ksigmabox << Set(MValidationSpecificityID:ksigma));
 							),
@@ -148,14 +148,14 @@ New Window( "Method Validation - Specificity ID",
 						UnitBox = Text edit box("", << set width(1000)),
 					),
 				),
-				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+				Try(AnalystBox << set text(MValidationSpecificityID:Descriptives["Analyst"]));
+				Try(AMBox << set text(MValidationSpecificityID:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(MValidationSpecificityID:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(MValidationSpecificityID:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(MValidationSpecificityID:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(MValidationSpecificityID:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(MValidationSpecificityID:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(MValidationSpecificityID:Descriptives["Unit"]));
 			)
 		)
 	)

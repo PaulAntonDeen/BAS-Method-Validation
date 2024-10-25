@@ -84,7 +84,7 @@ New Window( "Analytical Method Validation",
 								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
 								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
 								Try(Descriptives << insert("Unit", UnitBox << get text()));
-								AMValidation:Descriptives = Descriptives;
+								MVStability:Descriptives = Descriptives;
 								//Validate
 								If(
 									or(
@@ -107,14 +107,14 @@ New Window( "Analytical Method Validation",
 								Try(DescriptivesBox << Set Items(MVStability:DescriptivesNames));
 								Try(OutlierBox << Set(MVStability:OutlierDetection));
 								Try(ksigmabox << Set(MVStability:ksigma));
-								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+								Try(AnalystBox << set text(MVStability:Descriptives["Analyst"]));
+								Try(AMBox << set text(MVStability:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(MVStability:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(MVStability:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(MVStability:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(MVStability:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(MVStability:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(MVStability:Descriptives["Unit"]));
 							),
 						)
 					),
@@ -139,14 +139,14 @@ New Window( "Analytical Method Validation",
 						UnitBox = Text edit box("", << set width(1000)),
 					)
 				),
-				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+				Try(AnalystBox << set text(MVStability:Descriptives["Analyst"]));
+				Try(AMBox << set text(MVStability:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(MVStability:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(MVStability:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(MVStability:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(MVStability:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(MVStability:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(MVStability:Descriptives["Unit"]));
 			)
 		)
 	)

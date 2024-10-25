@@ -97,7 +97,7 @@ New Window( "Method Validation - Specificity Interference",
 								Try(Descriptives << insert("Standard ID", StandardIDBox << get text()));
 								Try(Descriptives << insert("Study date(s)", StudyDataBox << get text()));
 								Try(Descriptives << insert("Unit", UnitBox << get text()));
-								AMValidation:Descriptives = Descriptives;
+								MValidationSpecificity:Descriptives = Descriptives;
 								Try(MValidationSpecificity:ksigma = ksigma = ksigmabox << get());
 								Try(MValidationSpecificity:OutlierDetection = OutlierDetection = OutlierBox << Get());
 								//Validate
@@ -125,14 +125,14 @@ New Window( "Method Validation - Specificity Interference",
 								Try(UnSpikedBox << Set Items(MValidationSpecificity:UnSpikedColName));
 								Try(AccuracyBox << Set(MValidationSpecificity:Accuracy));
 								Try(ValBox << Set(MValidationSpecificity:Tolerance));
-								Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-								Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-								Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-								Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-								Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-								Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-								Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-								Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+								Try(AnalystBox << set text(MValidationSpecificity:Descriptives["Analyst"]));
+								Try(AMBox << set text(MValidationSpecificity:Descriptives["Analytical method"]));
+								Try(InstrumentBox << set text(MValidationSpecificity:Descriptives["Instrument"]));
+								Try(PurposeBox << set text(MValidationSpecificity:Descriptives["Purpose"]));
+								Try(StudyDataBox << set text(MValidationSpecificity:Descriptives["Study date(s)"]));
+								Try(StandardIDBox << set text(MValidationSpecificity:Descriptives["Standard ID"]));
+								Try(StandardExpiryBox << set text(MValidationSpecificity:Descriptives["Standard Expiry"]));
+								Try(UnitBox << set text(MValidationSpecificity:Descriptives["Unit"]));
 								Try(SpecBox << set(MValidationSpecificity:SpecType));
 								Try(OutlierBox << Set(MValidationSpecificity:OutlierDetection));
 								Try(ksigmabox << Set(MValidationSpecificity:ksigma));
@@ -167,14 +167,14 @@ New Window( "Method Validation - Specificity Interference",
 						UnitBox = Text edit box("", << set width(1000)),
 					),
 				),
-				Try(AnalystBox << set text(AMValidation:Descriptives["Analyst"]));
-				Try(AMBox << set text(AMValidation:Descriptives["Analytical method"]));
-				Try(InstrumentBox << set text(AMValidation:Descriptives["Instrument"]));
-				Try(PurposeBox << set text(AMValidation:Descriptives["Purpose"]));
-				Try(StudyDataBox << set text(AMValidation:Descriptives["Study date(s)"]));
-				Try(StandardIDBox << set text(AMValidation:Descriptives["Standard ID"]));
-				Try(StandardExpiryBox << set text(AMValidation:Descriptives["Standard Expiry"]));
-				Try(UnitBox << set text(AMValidation:Descriptives["Unit"]));
+				Try(AnalystBox << set text(MValidationSpecificity:Descriptives["Analyst"]));
+				Try(AMBox << set text(MValidationSpecificity:Descriptives["Analytical method"]));
+				Try(InstrumentBox << set text(MValidationSpecificity:Descriptives["Instrument"]));
+				Try(PurposeBox << set text(MValidationSpecificity:Descriptives["Purpose"]));
+				Try(StudyDataBox << set text(MValidationSpecificity:Descriptives["Study date(s)"]));
+				Try(StandardIDBox << set text(MValidationSpecificity:Descriptives["Standard ID"]));
+				Try(StandardExpiryBox << set text(MValidationSpecificity:Descriptives["Standard Expiry"]));
+				Try(UnitBox << set text(MValidationSpecificity:Descriptives["Unit"]));
 			)
 		)
 	)
