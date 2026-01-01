@@ -353,7 +353,7 @@ MainBody = expr(
 		jrn << append(Text box("K Sigma: " || char(ksigma)))
 	);
 	
-	Header(dt << get name() || " - Model comparisson (all data)");
+	Header(dt << get name() || " - Model comparison (all data)");
 	jrn << append((ModTbl << New Data Box()) << Clone Box);
 	Close(ModTbl, No save);
 	
